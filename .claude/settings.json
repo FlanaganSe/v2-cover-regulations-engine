@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python *)",
+      "Bash(pytest *)",
+      "Bash(uv *)",
+      "Bash(ruff *)",
+      "Bash(mypy *)",
+      "Bash(pnpm *)",
+      "Bash(npx tsc *)",
+      "Bash(npx vitest *)",
+      "Bash(cdk *)",
+      "Bash(aws *)",
+      "Bash(git *)"
+    ],
+    "deny": [
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.kube/**)",
+      "Read(~/.docker/config.json)",
+      "Read(~/.npmrc)",
+      "Read(~/.git-credentials)"
+    ]
+  }
+}

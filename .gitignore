@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+dist/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+
+# TypeScript / Node
+node_modules/
+.next/
+out/
+dist/
+.turbo/
+*.tsbuildinfo
+
+# AWS CDK
+cdk.out/
+.cdk.staging/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Claude plans
+.claude/plans/
+
+# OS
+.DS_Store
+Thumbs.db
