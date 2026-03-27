@@ -1,9 +1,14 @@
-/** Protomaps base map style + Martin tile source config. */
+/** Basemap + Martin tile source config. */
 
-import { layers, namedFlavor } from "@protomaps/basemaps";
 import type { StyleSpecification } from "maplibre-gl";
 
 const MARTIN_URL = import.meta.env.VITE_MARTIN_URL ?? "http://localhost:3001";
+const BASEMAP_TILE_URL =
+  import.meta.env.VITE_BASEMAP_TILE_URL ??
+  "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+const BASEMAP_ATTRIBUTION =
+  import.meta.env.VITE_BASEMAP_ATTRIBUTION ??
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 /** Color map for zone classes. */
 const ZONE_COLORS: Record<string, string> = {
@@ -46,15 +51,13 @@ function buildZoneColorExpression(): (string | string[])[] {
 export function buildMapStyle(): StyleSpecification {
   return {
     version: 8,
-    glyphs:
-      "https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf",
-    sprite: "https://protomaps.github.io/basemaps-assets/sprites/v4/light",
     sources: {
-      protomaps: {
-        type: "vector",
-        url: "pmtiles://https://build.protomaps.com/20250305.pmtiles",
-        attribution:
-          '<a href="https://protomaps.com">Protomaps</a> <a href="https://openstreetmap.org">OSM</a>',
+      basemap: {
+        type: "raster",
+        tiles: [BASEMAP_TILE_URL],
+        tileSize: 256,
+        maxzoom: 19,
+        attribution: BASEMAP_ATTRIBUTION,
       },
       zoning: {
         type: "vector",
@@ -70,7 +73,11 @@ export function buildMapStyle(): StyleSpecification {
       },
     },
     layers: [
-      ...layers("protomaps", namedFlavor("light"), { lang: "en" }),
+      {
+        id: "basemap",
+        type: "raster",
+        source: "basemap",
+      },
       {
         id: "zoning-fill",
         type: "fill",
@@ -142,4 +149,4 @@ export function buildMapStyle(): StyleSpecification {
   };
 }
 
-export { MARTIN_URL };
+export { BASEMAP_ATTRIBUTION, BASEMAP_TILE_URL, MARTIN_URL };

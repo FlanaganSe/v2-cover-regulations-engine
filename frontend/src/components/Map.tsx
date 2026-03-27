@@ -1,22 +1,12 @@
-/** MapLibre GL map with Protomaps base + Martin tile layers. */
+/** MapLibre GL map with basemap + Martin tile layers. */
 
-import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { Protocol } from "pmtiles";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMapGL, {
   type MapRef,
   type ViewStateChangeEvent,
 } from "react-map-gl/maplibre";
 import { buildMapStyle } from "../lib/mapStyle";
-
-// Register PMTiles protocol once (guard for HMR re-evaluation)
-let pmtilesRegistered = false;
-if (!pmtilesRegistered) {
-  const protocol = new Protocol();
-  maplibregl.addProtocol("pmtiles", protocol.tile);
-  pmtilesRegistered = true;
-}
 
 const LA_CENTER = { longitude: -118.25, latitude: 34.05 };
 const INITIAL_ZOOM = 11;
@@ -41,6 +31,12 @@ export function Map({
 
   const handleMove = useCallback((evt: ViewStateChangeEvent) => {
     setViewState(evt.viewState);
+  }, []);
+
+  const handleMapError = useCallback((evt: { error?: Error }) => {
+    if (evt.error) {
+      console.error("MapLibre rendering error", evt.error);
+    }
   }, []);
 
   // Fly to selected parcel
@@ -106,6 +102,7 @@ export function Map({
       ref={mapRef}
       {...viewState}
       onMove={handleMove}
+      onError={handleMapError}
       mapStyle={mapStyle}
       style={{ width: "100%", height: "100%" }}
     >
