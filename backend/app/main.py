@@ -5,9 +5,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.database import engine
+from app.routers.home import router as home_router
 from app.routers.parcels import router as parcels_router
 
 app = FastAPI(title="LA Regulation Engine", version="0.1.0")
+app.include_router(home_router)
 app.include_router(parcels_router)
 
 app.add_middleware(

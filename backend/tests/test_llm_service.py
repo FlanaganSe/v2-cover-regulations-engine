@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
 from app.data.zone_rules import AduRules, ZoneRule, get_adu_rules
 from app.schemas.parcel import Assessment, OverlayRef, Overlays, ParcelFacts
 from app.services.llm_service import (
@@ -243,6 +245,7 @@ class TestBuildUserMessage:
 # ── generate_assessment tests ────────────────────────────────────
 
 
+@pytest.mark.asyncio
 class TestGenerateAssessment:
     async def test_no_api_key_returns_fallback(self) -> None:
         with patch("app.services.llm_service.settings") as mock_settings:

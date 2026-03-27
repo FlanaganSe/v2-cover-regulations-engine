@@ -6,13 +6,10 @@ import type { ParcelSearchResult } from "../types/assessment";
 
 const DEBOUNCE_MS = 300;
 
-export function useParcelSearch(): {
-  query: string;
-  setQuery: (q: string) => void;
+export function useParcelSearch(query: string): {
   results: ParcelSearchResult[];
   isLoading: boolean;
 } {
-  const [query, setQuery] = useState("");
   const [results, setResults] = useState<ParcelSearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -56,5 +53,5 @@ export function useParcelSearch(): {
     return () => abortRef.current?.abort();
   }, []);
 
-  return { query, setQuery, results, isLoading };
+  return { results, isLoading };
 }

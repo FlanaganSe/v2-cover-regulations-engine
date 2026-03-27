@@ -6,22 +6,28 @@ import { useParcelSearch } from "../hooks/useParcelSearch";
 import type { ParcelSearchResult } from "../types/assessment";
 
 interface SearchBarProps {
+  query: string;
+  onQueryChange: (query: string) => void;
   onSelect: (result: ParcelSearchResult) => void;
 }
 
-export function SearchBar({ onSelect }: SearchBarProps): React.JSX.Element {
-  const { query, setQuery, results, isLoading } = useParcelSearch();
+export function SearchBar({
+  query,
+  onQueryChange,
+  onSelect,
+}: SearchBarProps): React.JSX.Element {
+  const { results, isLoading } = useParcelSearch(query);
   const [isOpen, setIsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   function handleSelect(result: ParcelSearchResult): void {
     setIsOpen(false);
-    setQuery(result.address ?? result.ain);
+    onQueryChange(result.address ?? result.ain);
     onSelect(result);
   }
 
   function handleClear(): void {
-    setQuery("");
+    onQueryChange("");
     setIsOpen(false);
     inputRef.current?.focus();
   }
@@ -35,7 +41,7 @@ export function SearchBar({ onSelect }: SearchBarProps): React.JSX.Element {
           type="text"
           value={query}
           onChange={(e) => {
-            setQuery(e.target.value);
+            onQueryChange(e.target.value);
             setIsOpen(true);
           }}
           onFocus={() => {

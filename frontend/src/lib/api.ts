@@ -1,6 +1,7 @@
 /** Typed API client for backend endpoints. */
 
 import type { ParcelDetail, ParcelSearchResult } from "../types/assessment";
+import type { HomeMetadata } from "../types/home";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
@@ -27,4 +28,11 @@ export async function getParcelDetail(
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return (await res.json()) as ParcelDetail;
+}
+
+export async function getHomeMetadata(): Promise<HomeMetadata> {
+  const res = await fetch(`${API_URL}/api/home`);
+
+  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  return (await res.json()) as HomeMetadata;
 }
