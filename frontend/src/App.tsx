@@ -18,6 +18,35 @@ import type { HomeMetadata } from "./types/home";
 
 type ViewState = "home" | "loading" | "error" | "assessment";
 
+const ZONE_LEGEND = [
+  { label: "R1 / RS", color: "#4CAF50" },
+  { label: "R3 / RD", color: "#FF9800" },
+  { label: "R4 / R5", color: "#F44336" },
+  { label: "RE / RA", color: "#81C784" },
+] as const;
+
+function ZoneLegend(): React.JSX.Element {
+  return (
+    <div className="absolute bottom-4 left-4 z-10 rounded-lg border border-border-default bg-bg-card/90 px-3 py-2.5 shadow-card backdrop-blur-sm">
+      <p className="mb-1.5 text-[10px] font-semibold tracking-widest text-text-muted uppercase">
+        Zone overlay
+      </p>
+      <div className="space-y-1">
+        {ZONE_LEGEND.map(({ label, color }) => (
+          <div key={label} className="flex items-center gap-2">
+            <span
+              aria-hidden="true"
+              className="h-2.5 w-2.5 rounded-full"
+              style={{ backgroundColor: color }}
+            />
+            <span className="text-[11px] text-text-secondary">{label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function App(): React.JSX.Element {
   const [query, setQuery] = useState("");
   const [detail, setDetail] = useState<ParcelDetail | null>(null);
@@ -152,16 +181,21 @@ export function App(): React.JSX.Element {
       {/* Main content: map + sidebar */}
       <div className="flex min-h-0 flex-1">
         {/* Map */}
-        <div className="flex-1">
+        <div className="relative flex-1">
           <Map
             selectedLat={selectedLat}
             selectedLon={selectedLon}
             selectedAin={selectedAin}
           />
+          <ZoneLegend />
         </div>
 
-        {/* Sidebar */}
-        <aside className="w-[420px] shrink-0 overflow-y-auto border-l border-border-default bg-bg-sidebar p-6">
+        {/* Sidebar — 420px on home, 480px on detail */}
+        <aside
+          className={`shrink-0 overflow-y-auto border-l border-border-default bg-bg-sidebar p-6 transition-[width] duration-200 ease-in-out ${
+            viewState === "home" ? "w-[420px]" : "w-[480px]"
+          }`}
+        >
           {viewState === "loading" && (
             <div className="flex items-center justify-center py-12 text-sm text-text-muted">
               Loading...
