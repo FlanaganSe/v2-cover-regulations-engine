@@ -39,7 +39,7 @@ ENDPOINTS = {
 # Page sizes per endpoint (use each endpoint's maxRecordCount)
 PAGE_SIZES = {
     "parcels": 1000,
-    "zoning": 20000,
+    "zoning": 1000,
     "specific_plans": 1000,
     "hpoz": 1000,
     "community_plan_areas": 1000,
