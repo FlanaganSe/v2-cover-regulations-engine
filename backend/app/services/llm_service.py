@@ -152,7 +152,7 @@ def build_user_message(
             "reasons": list(confidence.reasons),
         },
     }
-    return json.dumps(data, indent=2)
+    return json.dumps(data)
 
 
 # ── Deterministic fallback ───────────────────────────────────────
@@ -260,6 +260,7 @@ async def generate_assessment(
             input=user_message,
             text_format=_AssessmentLLMOutput,
             temperature=0.2,
+            max_output_tokens=600,
         )
 
         parsed = response.output_parsed
