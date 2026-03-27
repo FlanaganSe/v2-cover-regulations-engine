@@ -1,18 +1,9 @@
-/** Trust-first homepage content for the empty workspace state. */
+/** Home sidebar: hero, recent searches, featured parcels, how-it-works, data sources. */
 
-import {
-  BookOpen,
-  Building2,
-  Clock3,
-  Database,
-  Home,
-  MapPinned,
-  Scale,
-  Sparkles,
-} from "lucide-react";
-import type { ParcelSearchResult } from "../types/assessment";
-import type { FeaturedParcel, HomeMetadata } from "../types/home";
+import { CheckCircle2, ChevronRight, Clock3 } from "lucide-react";
 import type { RecentSearchItem } from "../lib/recentSearches";
+import type { ParcelSearchResult } from "../types/assessment";
+import type { FeaturedParcel, HomeMetadata, HomeSource } from "../types/home";
 
 interface HomePanelProps {
   metadata: HomeMetadata | null;
@@ -21,147 +12,114 @@ interface HomePanelProps {
   onSelectParcel: (result: ParcelSearchResult) => void;
 }
 
-const SUPPORTED_SCOPE = [
-  "City of Los Angeles parcels only",
-  "Residential-focused curated rule-pack coverage",
-  "Deterministic zoning and standards first",
-  "AI used only to explain grounded facts",
+const HOW_IT_WORKS = [
+  {
+    step: 1,
+    title: "Search a parcel",
+    description:
+      "Enter an address or APN to look up any residential parcel in Los Angeles.",
+  },
+  {
+    step: 2,
+    title: "Review zoning details",
+    description:
+      "View development standards, overlays, setbacks, density limits, and allowed uses.",
+  },
+  {
+    step: 3,
+    title: "Read the assessment",
+    description:
+      "Get an automated summary with confidence level, citations, and caveats.",
+  },
 ];
 
-const LIMITATIONS = [
-  "Chapter 1A / downtown zones are not supported yet",
-  "Specific plans and HPOZ reduce confidence and require manual review",
-  "Building footprints are available only for demo neighborhoods",
-];
-
-const FALLBACK_SOURCES = [
+const FALLBACK_SOURCES: HomeSource[] = [
   {
     id: "parcels",
-    label: "LA County Parcels",
+    label: "LA County Assessor",
     source_url: null,
-    coverage_note:
-      "Parcel geometry, addresses, and property facts filtered to LA City parcels.",
+    coverage_note: "Parcel geometry, lot size, year built",
   },
   {
     id: "zoning",
-    label: "NavigateLA Zoning",
+    label: "ZIMAS",
     source_url: null,
-    coverage_note:
-      "Primary zoning layer used to determine base zone class and zone string.",
+    coverage_note: "Zone string, height district, overlays",
   },
   {
-    id: "specific_plans",
-    label: "Specific Plans",
+    id: "lamc",
+    label: "LAMC Chapter 1",
     source_url: null,
-    coverage_note:
-      "Specific plan intersections are flagged because additional standards may apply.",
-  },
-  {
-    id: "hpoz",
-    label: "HPOZ",
-    source_url: null,
-    coverage_note:
-      "Historic preservation overlay intersections are flagged for design review.",
-  },
-  {
-    id: "community_plan_areas",
-    label: "Community Plan Areas",
-    source_url: null,
-    coverage_note: "Used for community-plan context and Chapter 1A detection.",
-  },
-  {
-    id: "general_plan_lu",
-    label: "General Plan Land Use",
-    source_url: null,
-    coverage_note: "Used as policy context alongside the zoning assessment.",
-  },
-  {
-    id: "city_boundaries",
-    label: "City Boundaries",
-    source_url: null,
-    coverage_note:
-      "Used to confirm whether a parcel is inside the City of Los Angeles.",
-  },
-  {
-    id: "buildings",
-    label: "LARIAC Buildings",
-    source_url: null,
-    coverage_note:
-      "Building footprints are seeded only for demo neighborhoods: Silver Lake, Venice, and Eagle Rock.",
+    coverage_note: "Development standards, setbacks, density",
   },
 ];
 
-const CONFIDENCE_LEVELS = [
-  {
-    label: "High",
-    description:
-      "Supported residential parcel with no major modifiers or overlays.",
-    className: "border-green-200 bg-green-50 text-green-800",
-  },
-  {
-    label: "Medium",
-    description:
-      "Supported parcel with qualifiers, overlays, or extra review needs.",
-    className: "border-amber-200 bg-amber-50 text-amber-800",
-  },
-  {
-    label: "Low",
-    description:
-      "Unsupported, ambiguous, or overlay-heavy cases that need manual review.",
-    className: "border-red-200 bg-red-50 text-red-800",
-  },
-];
+function Divider(): React.JSX.Element {
+  return <hr className="border-border-subtle" />;
+}
 
-function ParcelButton({
+function SectionLabel({
+  children,
+}: {
+  children: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <h3 className="text-[11px] font-semibold tracking-widest text-text-muted uppercase">
+      {children}
+    </h3>
+  );
+}
+
+function ParcelCard({
   title,
-  subtitle,
+  address,
+  zoneBadge,
   onClick,
 }: {
   title: string;
-  subtitle: string;
+  address: string;
+  zoneBadge: string | null;
   onClick: () => void;
 }): React.JSX.Element {
   return (
     <button
       onClick={onClick}
-      className="w-full rounded-xl border border-gray-200 bg-white p-3 text-left shadow-sm transition hover:border-blue-300 hover:bg-blue-50"
+      className="flex w-full items-center gap-3 rounded-lg border border-border-default bg-bg-card p-3 text-left shadow-card transition-colors hover:border-accent-primary/30 hover:bg-bg-hover"
     >
-      <div className="text-sm font-semibold text-gray-900">{title}</div>
-      <div className="mt-1 text-xs leading-relaxed text-gray-600">
-        {subtitle}
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-semibold text-text-primary">{title}</div>
+        <div className="mt-0.5 text-xs text-text-muted">{address}</div>
+        {zoneBadge && (
+          <span className="mt-1 inline-block rounded bg-accent-primary-light px-1.5 py-0.5 text-[10px] font-semibold text-accent-primary">
+            {zoneBadge}
+          </span>
+        )}
       </div>
+      <ChevronRight className="h-4 w-4 shrink-0 text-text-tertiary" />
     </button>
   );
 }
 
 function FeaturedParcels({
-  featuredParcels,
-  onSelectParcel,
+  parcels,
+  onSelect,
 }: {
-  featuredParcels: FeaturedParcel[];
-  onSelectParcel: (result: ParcelSearchResult) => void;
+  parcels: FeaturedParcel[];
+  onSelect: (result: ParcelSearchResult) => void;
 }): React.JSX.Element | null {
-  if (featuredParcels.length === 0) return null;
+  if (parcels.length === 0) return null;
 
   return (
-    <section className="space-y-2">
-      <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-        <Sparkles className="h-4 w-4 text-blue-600" />
-        Featured parcels
-      </div>
+    <section className="space-y-3">
+      <SectionLabel>Featured parcels</SectionLabel>
       <div className="space-y-2">
-        {featuredParcels.map((parcel) => (
-          <ParcelButton
+        {parcels.map((parcel) => (
+          <ParcelCard
             key={`${parcel.category}:${parcel.ain}`}
             title={parcel.label}
-            subtitle={[
-              parcel.description,
-              parcel.address ?? "Address unavailable",
-              parcel.zone_class ? `Zone ${parcel.zone_class}` : null,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-            onClick={() => onSelectParcel(parcel)}
+            address={parcel.address ?? "Address unavailable"}
+            zoneBadge={parcel.zone_class}
+            onClick={() => onSelect(parcel)}
           />
         ))}
       </div>
@@ -170,32 +128,28 @@ function FeaturedParcels({
 }
 
 function RecentSearches({
-  recentSearches,
-  onSelectParcel,
+  searches,
+  onSelect,
 }: {
-  recentSearches: RecentSearchItem[];
-  onSelectParcel: (result: ParcelSearchResult) => void;
+  searches: RecentSearchItem[];
+  onSelect: (result: ParcelSearchResult) => void;
 }): React.JSX.Element | null {
-  if (recentSearches.length === 0) return null;
+  if (searches.length === 0) return null;
 
   return (
-    <section className="space-y-2">
-      <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-        <Clock3 className="h-4 w-4 text-blue-600" />
-        Recent searches
+    <section className="space-y-3">
+      <div className="flex items-center gap-1.5">
+        <Clock3 className="h-3.5 w-3.5 text-text-muted" />
+        <SectionLabel>Recent searches</SectionLabel>
       </div>
       <div className="space-y-2">
-        {recentSearches.map((parcel) => (
-          <ParcelButton
-            key={`recent:${parcel.ain}`}
-            title={parcel.address ?? parcel.apn ?? parcel.ain}
-            subtitle={[
-              `APN ${parcel.apn ?? parcel.ain}`,
-              parcel.zone_class ? `Zone ${parcel.zone_class}` : null,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-            onClick={() => onSelectParcel(parcel)}
+        {searches.map((search) => (
+          <ParcelCard
+            key={`recent:${search.ain}`}
+            title={search.address ?? search.apn ?? search.ain}
+            address={`APN ${search.apn ?? search.ain}`}
+            zoneBadge={search.zone_class}
+            onClick={() => onSelect(search)}
           />
         ))}
       </div>
@@ -203,13 +157,15 @@ function RecentSearches({
   );
 }
 
-function SourcesSection({
+function DataSourcesList({
   metadata,
   metadataError,
 }: {
   metadata: HomeMetadata | null;
   metadataError: boolean;
 }): React.JSX.Element {
+  const sources = metadata?.sources ?? FALLBACK_SOURCES;
+
   const formattedDate =
     metadata?.data_as_of != null
       ? new Date(metadata.data_as_of).toLocaleDateString("en-US", {
@@ -220,51 +176,36 @@ function SourcesSection({
       : null;
 
   return (
-    <section className="space-y-2">
-      <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-        <Database className="h-4 w-4 text-blue-600" />
-        Data sources
-      </div>
-      {formattedDate ? (
-        <p className="text-xs text-gray-500">
+    <section className="space-y-3">
+      <SectionLabel>Data sources</SectionLabel>
+      {formattedDate && (
+        <p className="text-xs text-text-muted">
           Latest data snapshot: {formattedDate}
-        </p>
-      ) : (
-        <p className="text-xs text-gray-500">
-          Latest data freshness is unavailable in this environment.
         </p>
       )}
       {metadataError && (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+        <p className="rounded-md border border-confidence-medium/30 bg-confidence-medium-bg p-2 text-xs text-confidence-medium">
           Live source metadata could not be loaded. Static scope guidance is
           still shown.
         </p>
       )}
-      <div className="space-y-2">
-        {(metadata?.sources ?? FALLBACK_SOURCES).map((source) => (
-          <div
+      <ul className="space-y-2">
+        {sources.map((source) => (
+          <li
             key={source.id}
-            className="rounded-lg border border-gray-200 bg-white p-3"
+            className="flex items-baseline gap-2 text-xs text-text-secondary"
           >
-            <div className="text-sm font-medium text-gray-900">
-              {source.label}
-            </div>
-            <div className="mt-1 text-xs leading-relaxed text-gray-600">
-              {source.coverage_note}
-            </div>
-            {source.source_url && (
-              <a
-                href={source.source_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-2 inline-flex text-xs font-medium text-blue-600 hover:underline"
-              >
-                View source
-              </a>
-            )}
-          </div>
+            <span className="text-text-tertiary">&bull;</span>
+            <span>
+              <span className="font-medium">{source.label}</span>
+              <span className="text-text-muted">
+                {"  —  "}
+                {source.coverage_note}
+              </span>
+            </span>
+          </li>
         ))}
-      </div>
+      </ul>
     </section>
   );
 }
@@ -278,120 +219,75 @@ export function HomePanel({
   const supportedZoneCount = metadata?.supported_zone_classes.length;
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="flex items-center gap-2 text-sm font-semibold text-blue-700">
-          <Home className="h-4 w-4" />
+    <div className="space-y-7">
+      {/* Hero */}
+      <section>
+        <p className="text-[11px] font-semibold tracking-widest text-accent-primary uppercase">
           Regulation workspace
-        </div>
-        <h2 className="mt-2 text-xl font-semibold text-gray-900">
+        </p>
+        <h2 className="mt-3 text-[22px] font-bold leading-snug text-text-primary">
           Understand what can be confidently built on a parcel.
         </h2>
-        <p className="mt-2 text-sm leading-relaxed text-gray-600">
+        <p className="mt-3 text-[13px] leading-relaxed text-text-secondary">
           Search by address or APN to review parcel facts, zoning, overlays,
           development standards, ADU guidance, and a grounded explanation of the
           result.
         </p>
-        <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs leading-relaxed text-blue-900">
+        <div className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-accent-teal/20 bg-accent-teal-light px-3 py-2 text-xs font-medium text-accent-teal">
+          <CheckCircle2 className="h-3.5 w-3.5" />
           {supportedZoneCount != null
-            ? `The current rule pack covers ${supportedZoneCount} curated residential zone classes.`
-            : "The current rule pack covers a curated residential subset of LA City zoning."}
+            ? `${supportedZoneCount} curated residential zone classes covered`
+            : "Curated residential zone classes covered"}
         </div>
       </section>
 
-      <FeaturedParcels
-        featuredParcels={metadata?.featured_parcels ?? []}
-        onSelectParcel={onSelectParcel}
-      />
+      <Divider />
 
-      <RecentSearches
-        recentSearches={recentSearches}
-        onSelectParcel={onSelectParcel}
-      />
+      {/* Recent Searches (conditional) */}
+      {recentSearches.length > 0 && (
+        <>
+          <RecentSearches searches={recentSearches} onSelect={onSelectParcel} />
+          <Divider />
+        </>
+      )}
 
-      {recentSearches.length === 0 &&
-        (metadata?.featured_parcels.length ?? 0) === 0 && (
-          <section className="rounded-2xl border border-dashed border-gray-300 bg-white p-4 text-sm text-gray-600">
-            Start with an address or APN in Los Angeles. The search bar supports
-            parcel addresses and formatted APNs like{" "}
-            <span className="font-medium">1234-567-890</span>.
-          </section>
-        )}
+      {/* Featured Parcels */}
+      {(metadata?.featured_parcels ?? []).length > 0 && (
+        <>
+          <FeaturedParcels
+            parcels={metadata?.featured_parcels ?? []}
+            onSelect={onSelectParcel}
+          />
+          <Divider />
+        </>
+      )}
 
-      <section className="space-y-2">
-        <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-          <MapPinned className="h-4 w-4 text-blue-600" />
-          Supported scope
-        </div>
-        <div className="space-y-2">
-          {SUPPORTED_SCOPE.map((item) => (
-            <div
-              key={item}
-              className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700"
-            >
-              {item}
+      {/* How It Works */}
+      <section className="space-y-4">
+        <SectionLabel>How it works</SectionLabel>
+        <div className="space-y-4">
+          {HOW_IT_WORKS.map((item) => (
+            <div key={item.step} className="flex gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center text-sm font-bold text-text-tertiary">
+                {item.step}
+              </span>
+              <div>
+                <div className="text-sm font-semibold text-text-primary">
+                  {item.title}
+                </div>
+                <p className="mt-0.5 text-xs leading-relaxed text-text-muted">
+                  {item.description}
+                </p>
+              </div>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="space-y-2">
-        <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-          <Building2 className="h-4 w-4 text-blue-600" />
-          Important limitations
-        </div>
-        <div className="space-y-2">
-          {LIMITATIONS.map((item) => (
-            <div
-              key={item}
-              className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
-            >
-              {item}
-            </div>
-          ))}
-        </div>
-      </section>
+      <Divider />
 
-      <section className="space-y-2">
-        <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-          <Scale className="h-4 w-4 text-blue-600" />
-          Confidence guide
-        </div>
-        <div className="space-y-2">
-          {CONFIDENCE_LEVELS.map((level) => (
-            <div
-              key={level.label}
-              className={`rounded-lg border p-3 text-sm ${level.className}`}
-            >
-              <div className="font-semibold">{level.label}</div>
-              <div className="mt-1 leading-relaxed">{level.description}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="space-y-2">
-        <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-          <BookOpen className="h-4 w-4 text-blue-600" />
-          How this works
-        </div>
-        <div className="space-y-2">
-          <div className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700">
-            Parcel match and zoning context are resolved from GIS layers in
-            PostGIS.
-          </div>
-          <div className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700">
-            Development standards and confidence come from deterministic rules,
-            not the AI.
-          </div>
-          <div className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-700">
-            The AI summary restates grounded facts and citations to make the
-            result easier to read.
-          </div>
-        </div>
-      </section>
-
-      <SourcesSection metadata={metadata} metadataError={metadataError} />
+      {/* Data Sources */}
+      <DataSourcesList metadata={metadata} metadataError={metadataError} />
     </div>
   );
 }

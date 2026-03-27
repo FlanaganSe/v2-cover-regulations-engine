@@ -171,7 +171,7 @@ describe("App homepage flow", () => {
     expect(
       await screen.findByText(/Live source metadata could not be loaded/i),
     ).toBeInTheDocument();
-    expect(await screen.findByText("NavigateLA Zoning")).toBeInTheDocument();
+    expect(await screen.findByText("ZIMAS")).toBeInTheDocument();
   });
 
   it("loads a featured parcel into the assessment view and returns home", async () => {
