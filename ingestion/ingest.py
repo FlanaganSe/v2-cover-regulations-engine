@@ -19,6 +19,7 @@ from arcgis_client import (
     clear_checkpoint,
     fetch_layer,
     is_layer_complete,
+    mark_layer_complete,
     reset_layer_checkpoint,
 )
 from config import DEMO_BBOXES, ENDPOINTS, PAGE_SIZES
@@ -353,21 +354,6 @@ def _analyze_tables(conn: psycopg.Connection[Any]) -> None:
     conn.autocommit = old_autocommit
 
 
-def _buildings_bbox_envelope() -> dict[str, Any]:
-    """Compute the bounding envelope covering all demo bounding boxes."""
-    xmin = min(b["xmin"] for b in DEMO_BBOXES.values())
-    ymin = min(b["ymin"] for b in DEMO_BBOXES.values())
-    xmax = max(b["xmax"] for b in DEMO_BBOXES.values())
-    ymax = max(b["ymax"] for b in DEMO_BBOXES.values())
-    return {
-        "xmin": xmin,
-        "ymin": ymin,
-        "xmax": xmax,
-        "ymax": ymax,
-        "spatialReference": {"wkid": 4326},
-    }
-
-
 async def _fetch_buildings() -> list[dict[str, Any]]:
     """Fetch buildings from all 3 demo bounding boxes."""
     all_features: list[dict[str, Any]] = []
@@ -388,6 +374,8 @@ async def _fetch_buildings() -> list[dict[str, Any]]:
             layer_name=f"buildings_{bbox_name}",
         )
         all_features.extend(features)
+    # Mark buildings as complete (per-bbox keys are separate)
+    mark_layer_complete("buildings")
     return all_features
 
 

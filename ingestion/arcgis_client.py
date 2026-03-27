@@ -43,6 +43,13 @@ def is_layer_complete(layer_name: str) -> bool:
     return bool(checkpoint.get(layer_name, {}).get("complete", False))
 
 
+def mark_layer_complete(layer_name: str) -> None:
+    """Mark a layer as complete in the checkpoint."""
+    checkpoint = _load_checkpoint()
+    checkpoint[layer_name] = {"complete": True}
+    _save_checkpoint(checkpoint)
+
+
 def reset_layer_checkpoint(layer_name: str) -> None:
     """Reset a layer's checkpoint offset (called when table is truncated)."""
     checkpoint = _load_checkpoint()
@@ -159,15 +166,15 @@ async def fetch_layer(
             # Brief pause between requests to avoid overloading the server
             await asyncio.sleep(0.5)
 
-            # Save checkpoint after each page
-            checkpoint[layer_name] = {"offset": offset + page_size}
-            _save_checkpoint(checkpoint)
-
             # Dual stop condition
             if not exceeded and (page_count == 0 or page_count < page_size):
                 break
 
             offset += page_size
+
+            # Save checkpoint with next offset (safe: current page is consumed)
+            checkpoint[layer_name] = {"offset": offset}
+            _save_checkpoint(checkpoint)
 
     # Mark layer complete in checkpoint
     checkpoint[layer_name] = {"complete": True}
