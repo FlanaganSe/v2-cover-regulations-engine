@@ -5,13 +5,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.database import engine
+from app.routers.parcels import router as parcels_router
 
 app = FastAPI(title="LA Regulation Engine", version="0.1.0")
+app.include_router(parcels_router)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
