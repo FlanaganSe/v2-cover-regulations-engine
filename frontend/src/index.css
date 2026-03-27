@@ -1,1 +1,63 @@
 @import "tailwindcss";
+
+@theme {
+  /* ── Typography ── */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  /* ── Colors: Accent ── */
+  --color-accent-primary: #1e40af;
+  --color-accent-primary-hover: #1d4ed8;
+  --color-accent-primary-light: #eff6ff;
+  --color-accent-teal: #0d6e6e;
+  --color-accent-teal-light: #f0fdfa;
+
+  /* ── Colors: Backgrounds ── */
+  --color-bg-card: #ffffff;
+  --color-bg-hover: #f7f8fa;
+  --color-bg-muted: #f1f3f5;
+  --color-bg-page: #f7f8fa;
+  --color-bg-sidebar: #ffffff;
+
+  /* ── Colors: Borders ── */
+  --color-border-default: #e5e7eb;
+  --color-border-subtle: #f3f4f6;
+
+  /* ── Colors: Text ── */
+  --color-text-primary: #111827;
+  --color-text-secondary: #4b5563;
+  --color-text-muted: #6b7280;
+  --color-text-tertiary: #9ca3af;
+
+  /* ── Colors: Confidence ── */
+  --color-confidence-high: #059669;
+  --color-confidence-high-bg: #ecfdf5;
+  --color-confidence-medium: #d97706;
+  --color-confidence-medium-bg: #fffbeb;
+  --color-confidence-low: #dc2626;
+  --color-confidence-low-bg: #fef2f2;
+
+  /* ── Colors: Overlays ── */
+  --color-overlay-sp: #ea580c;
+  --color-overlay-sp-bg: #fff7ed;
+  --color-overlay-hpoz: #7c3aed;
+  --color-overlay-hpoz-bg: #f5f3ff;
+
+  /* ── Border Radius ── */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* ── Shadows ── */
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    color: var(--color-text-primary);
+    background-color: var(--color-bg-page);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
