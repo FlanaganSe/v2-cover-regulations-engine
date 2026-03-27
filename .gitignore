@@ -11,6 +11,7 @@ dist/
 .pytest_cache/
 htmlcov/
 .coverage
+.pnpm-store
 
 # TypeScript / Node
 node_modules/
