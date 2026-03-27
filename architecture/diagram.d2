@@ -1,0 +1,61 @@
+direction: right
+
+user: User {
+  shape: person
+}
+
+frontend: Frontend {
+  spa: React SPA
+  map: MapLibre GL
+}
+
+backend: Backend API {
+  api: FastAPI
+  rules: Rules Engine
+  llm: LLM Service
+}
+
+db: PostgreSQL + PostGIS {
+  shape: cylinder
+}
+
+martin: Martin Tile Server
+
+openai: OpenAI API {
+  shape: cloud
+}
+
+arcgis: LA County ArcGIS {
+  shape: cloud
+}
+
+basemap: OSM Tile CDN {
+  shape: cloud
+}
+
+ingestion: Ingestion Pipeline
+
+# User interactions
+user -> frontend.spa: HTTPS
+
+# Frontend to backend
+frontend.spa -> backend.api: REST
+
+# Frontend map tiles
+frontend.map -> martin: Vector tiles (HTTP)
+frontend.map -> basemap: Raster tiles (HTTPS)
+
+# Backend internals
+backend.api -> backend.rules: Zone parsing + standards
+backend.api -> backend.llm: Assessment prompt
+backend.llm -> openai: Structured output (HTTPS)
+
+# Backend to database
+backend.api -> db: SQL + PostGIS queries
+
+# Martin to database
+martin -> db: ST_AsMVT queries
+
+# Ingestion pipeline
+ingestion -> arcgis: Async HTTP pagination
+ingestion -> db: Bulk insert
