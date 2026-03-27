@@ -1,6 +1,6 @@
 /** Main app layout: map + search bar + assessment sidebar. */
 
-import { Home } from "lucide-react";
+import { Building2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AssessmentPanel } from "./components/AssessmentPanel";
 import { HomePanel } from "./components/HomePanel";
@@ -106,24 +106,47 @@ export function App(): React.JSX.Element {
   }, []);
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-gray-50">
-      {/* Header with search */}
-      <header className="flex items-center gap-4 border-b border-gray-200 bg-white px-4 py-2 shadow-sm">
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-bg-page">
+      {/* Header */}
+      <header className="flex h-14 shrink-0 items-center border-b border-border-default bg-bg-card px-4 md:px-6">
+        {/* Logo / Brand — left */}
         <button
           onClick={resetToHome}
-          className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+          aria-label="Home"
+          title="Home"
+          className="flex shrink-0 items-center gap-2 transition-opacity hover:opacity-80"
         >
-          <Home className="h-4 w-4" />
-          Home
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-primary">
+            <Building2 className="h-4 w-4 text-white" />
+          </div>
+          <div className="hidden items-baseline gap-1.5 sm:flex">
+            <span className="text-sm font-semibold text-text-primary">
+              Regulation Engine
+            </span>
+            <span className="hidden text-xs font-medium text-text-tertiary md:inline">
+              Los Angeles Zoning
+            </span>
+          </div>
         </button>
-        <h1 className="shrink-0 text-lg font-semibold text-gray-800">
-          LA Zoning
-        </h1>
-        <SearchBar
-          query={query}
-          onQueryChange={setQuery}
-          onSelect={handleSelect}
-        />
+
+        {/* Search — centered */}
+        <div className="mx-4 flex min-w-0 flex-1 justify-center">
+          <SearchBar
+            query={query}
+            onQueryChange={setQuery}
+            onSelect={handleSelect}
+          />
+        </div>
+
+        {/* Keyboard shortcut hint — right */}
+        <div className="hidden shrink-0 sm:block">
+          <kbd
+            aria-hidden="true"
+            className="rounded-md border border-border-default bg-bg-muted px-1.5 py-0.5 text-xs font-medium text-text-muted"
+          >
+            ⌘K
+          </kbd>
+        </div>
       </header>
 
       {/* Main content: map + sidebar */}
@@ -137,15 +160,15 @@ export function App(): React.JSX.Element {
           />
         </div>
 
-        {/* Assessment sidebar */}
-        <aside className="w-96 shrink-0 overflow-y-auto border-l border-gray-200 bg-gray-50 p-4">
+        {/* Sidebar */}
+        <aside className="w-[420px] shrink-0 overflow-y-auto border-l border-border-default bg-bg-sidebar p-6">
           {viewState === "loading" && (
-            <div className="flex items-center justify-center py-12 text-sm text-gray-500">
+            <div className="flex items-center justify-center py-12 text-sm text-text-muted">
               Loading...
             </div>
           )}
           {viewState === "error" && error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <div className="rounded-lg border border-confidence-low/30 bg-confidence-low-bg p-3 text-sm text-confidence-low">
               {error}
             </div>
           )}
