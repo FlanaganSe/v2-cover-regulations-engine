@@ -22,6 +22,7 @@ from app.schemas.parcel import (
     Standards,
     Zoning,
 )
+from app.services.llm_service import generate_assessment
 from app.services.rules_engine import (
     compute_confidence,
     get_adu_assessment,
@@ -236,6 +237,37 @@ async def get_parcel_detail(
             url=d["hpoz_url"],
         )
 
+    overlays = Overlays(
+        specific_plan=sp_overlay,
+        hpoz=hpoz_overlay,
+        community_plan=d["community_plan"],
+        general_plan_lu=d["general_plan_lu"],
+    )
+
+    parcel_facts = ParcelFacts(
+        ain=d["ain"],
+        apn=d["apn"],
+        address=d["address"],
+        center_lat=d["center_lat"],
+        center_lon=d["center_lon"],
+        lot_sqft=round(lot_sqft, 1) if lot_sqft else None,
+        year_built=d["year_built"],
+        use_description=d["use_description"],
+        bedrooms=d["bedrooms"],
+        sqft_main=d["sqft_main"],
+    )
+
+    # LLM assessment (falls back to deterministic if unavailable)
+    assessment = await generate_assessment(
+        parcel=parcel_facts,
+        parsed_zone=parsed,
+        zone_rule=zone_rule,
+        confidence=conf,
+        overlays=overlays,
+        adu=adu_rules,
+        effective_far=effective_far,
+    )
+
     # Metadata
     meta_result = await session.execute(_METADATA_QUERY)
     meta_row = meta_result.first()
@@ -248,18 +280,7 @@ async def get_parcel_detail(
         source_urls.append(zone_rule.source_url)
 
     return ParcelDetail(
-        parcel=ParcelFacts(
-            ain=d["ain"],
-            apn=d["apn"],
-            address=d["address"],
-            center_lat=d["center_lat"],
-            center_lon=d["center_lon"],
-            lot_sqft=round(lot_sqft, 1) if lot_sqft else None,
-            year_built=d["year_built"],
-            use_description=d["use_description"],
-            bedrooms=d["bedrooms"],
-            sqft_main=d["sqft_main"],
-        ),
+        parcel=parcel_facts,
         scope=Scope(
             in_la_city=in_la,
             supported_zone=supported,
@@ -274,12 +295,7 @@ async def get_parcel_detail(
             t_flag=parsed.t_flag,
             suffixes=list(parsed.suffixes),
         ),
-        overlays=Overlays(
-            specific_plan=sp_overlay,
-            hpoz=hpoz_overlay,
-            community_plan=d["community_plan"],
-            general_plan_lu=d["general_plan_lu"],
-        ),
+        overlays=overlays,
         standards=Standards(
             height_ft=zone_rule.max_height_ft if zone_rule else None,
             stories=zone_rule.max_stories if zone_rule else None,
@@ -301,7 +317,7 @@ async def get_parcel_detail(
             level=conf.level,
             reasons=list(conf.reasons),
         ),
-        assessment=None,
+        assessment=assessment,
         metadata=Metadata(
             data_as_of=data_as_of,
             source_urls=source_urls,

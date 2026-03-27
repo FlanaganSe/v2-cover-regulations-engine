@@ -93,6 +93,15 @@ class Metadata(BaseModel):
     source_urls: list[str] = []
 
 
+class Assessment(BaseModel):
+    """LLM-generated or deterministic assessment of zoning feasibility."""
+
+    summary: str
+    citations: list[str] = []
+    caveats: list[str] = []
+    llm_available: bool
+
+
 class ParcelDetail(BaseModel):
     """Full parcel detail response."""
 
@@ -103,12 +112,13 @@ class ParcelDetail(BaseModel):
     standards: Standards
     adu: Adu
     confidence: ConfidenceResponse
-    assessment: None = None  # Placeholder for M4 LLM integration
+    assessment: Assessment
     metadata: Metadata
 
 
 __all__ = [
     "Adu",
+    "Assessment",
     "ConfidenceResponse",
     "Metadata",
     "Overlays",
