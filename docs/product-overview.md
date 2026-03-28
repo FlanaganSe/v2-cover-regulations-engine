@@ -10,12 +10,12 @@ The target audience is homeowners, developers, and planners who need quick zonin
 
 - **Backend:** Python 3.12, FastAPI, async SQLAlchemy + GeoAlchemy2, Pydantic 2
 - **Frontend:** TypeScript 5.9, React 19, Vite 8, Tailwind CSS 4
-- **Map:** MapLibre GL JS + react-map-gl, Protomaps PMTiles base, Martin vector tile server
+- **Map:** MapLibre GL JS + react-map-gl, Martin vector tile server, Protomaps PMTiles base
 - **Database:** PostgreSQL 17 + PostGIS (spatial queries)
 - **LLM:** OpenAI (gpt-5.4-mini via `OPENAI_MODEL` env var), structured output with deterministic fallback
 - **Package managers:** uv (backend), pnpm (frontend)
 - **Linting/formatting:** Ruff (backend), ESLint + Prettier (frontend)
-- **Testing:** pytest + pytest-asyncio (backend), Vitest + Testing Library (frontend, infra ready but no tests yet)
+- **Testing:** pytest + pytest-asyncio (backend), Vitest + Testing Library (frontend)
 - **Deployment:** Railway Hobby (all services), AWS deferred to post-MVP
 
 ## Architecture
@@ -28,19 +28,17 @@ User → Frontend (React SPA) → Backend API (FastAPI) → PostgreSQL + PostGIS
                               LLM Service (OpenAI, optional)
 
 Map tiles: Frontend → Martin tile server → PostGIS (zoning, parcels, buildings)
-Base map:  Frontend → Protomaps PMTiles CDN
+Base map:  Frontend → OSM raster tiles / Protomaps PMTiles
 ```
 
-**Request flow for parcel detail:**
+**Request flow for parcel detail (two-phase loading):**
 
 1. User searches by address or APN → frontend calls `GET /api/parcels/search`
 2. Backend runs ILIKE address search or exact AIN match with a lateral join to get dominant zone
-3. User selects a result → frontend calls `GET /api/parcels/{ain}`
-4. Backend executes a large spatial join query: fetches parcel facts, dominant zoning, specific plan, HPOZ, community plan, general plan land use, LA City boundary check — all via PostGIS `ST_Intersects` with lateral joins ordered by intersection area
-5. Rules engine (pure functions, no I/O) parses the zone string, looks up the hardcoded rule, computes effective FAR, ADU eligibility, and confidence level
-6. LLM service builds a grounded prompt from all deterministic facts, calls OpenAI with structured output, filters citations to a whitelist. On any failure → deterministic fallback assessment
-7. Response assembled as `ParcelDetail` with 9 nested sections, returned to frontend
-8. Frontend renders the assessment panel (facts, zoning, standards, overlays, ADU, confidence badge, summary, citations, caveats)
+3. User selects a result → frontend initiates two-phase load:
+   - **Phase 1 (fast, ~200ms):** `GET /api/parcels/{ain}/facts` — spatial join query fetches parcel facts, dominant zoning, overlays, then rules engine computes standards, FAR, ADU, confidence. Returns deterministic `ParcelDetail` immediately. Sidebar transitions to assessment view.
+   - **Phase 2 (slow, 2-5s, non-critical):** `GET /api/parcels/{ain}/assessment` — LLM service builds grounded prompt from all deterministic facts, calls OpenAI with structured output, filters citations. On any failure → deterministic fallback remains. Assessment merges into the existing detail when ready.
+4. Frontend renders the assessment panel (facts, zoning, standards, overlays, ADU, confidence badge, summary, citations, caveats)
 
 **Key architectural decision:** All spatial data is bulk-seeded from LA County/City ArcGIS endpoints into PostGIS. Lookups are sub-100ms spatial joins, not live API calls. Data freshness comes from periodic re-ingestion.
 
@@ -57,12 +55,12 @@ Base map:  Frontend → Protomaps PMTiles CDN
 │   │   ├── schemas/         # Pydantic response models (ParcelDetail, HomeMetadata)
 │   │   ├── services/        # Business logic (parcel_service, rules_engine, llm_service, home_service)
 │   │   └── data/            # Hardcoded zone rules (zone_rules.py)
-│   └── tests/               # pytest tests (rules engine, LLM service)
+│   └── tests/               # pytest tests (rules engine, LLM service, home service, home API)
 ├── frontend/                # React SPA
 │   └── src/
-│       ├── components/      # App, Map, SearchBar, AssessmentPanel, HomePanel, ConfidenceBadge
-│       ├── hooks/           # useParcelSearch (debounced search with abort)
-│       ├── lib/             # api.ts (fetch client), mapStyle.ts (MapLibre style builder)
+│       ├── components/      # AssessmentPanel, HomePanel, Map, SearchBar, ConfidenceBadge
+│       ├── hooks/           # useParcelSearch (debounced search with AbortController)
+│       ├── lib/             # api.ts (fetch client), mapStyle.ts, recentSearches.ts
 │       └── types/           # TypeScript interfaces mirroring backend schemas
 ├── ingestion/               # Standalone data pipeline
 │   ├── config.py            # ArcGIS endpoint URLs, demo bboxes
@@ -71,8 +69,9 @@ Base map:  Frontend → Protomaps PMTiles CDN
 │   ├── verify_data.py       # Row count + geometry validation
 │   ├── arcgis_client.py     # HTTP client with retry (tenacity)
 │   └── geometry.py          # Shapely normalization to EPSG:4326
-├── docs/                    # ADRs, data source spec, deployment research
-├── .plans/                  # Implementation plans and research notes
+├── martin/                  # Vector tile server (Dockerfile only)
+├── docs/                    # ADRs, data source spec, deployment guide
+├── architecture/            # D2 diagram source + rendered PNG
 └── docker-compose.yml       # Local dev: db (PostGIS), martin, backend
 ```
 
@@ -100,6 +99,8 @@ Base map:  Frontend → Protomaps PMTiles CDN
 
 **Deterministic-first architecture.** Every factual claim (height, FAR, setbacks, density) comes from the hardcoded rules engine. The LLM receives all facts as grounding context and generates explanatory text. If the LLM fails, a template-based fallback produces the same facts without natural language polish.
 
+**Two-phase loading.** The frontend splits parcel lookup into two sequential requests: fast deterministic facts (Phase 1, blocks UI transition) and slow LLM assessment (Phase 2, non-critical). This lets users see all zoning data in ~200ms while the LLM summary streams in behind the scenes. Phase 2 failure is silently tolerated.
+
 **Pure function rules engine.** `rules_engine.py` has zero I/O — all functions are pure, taking parsed data and returning structured results. This makes it trivially testable and the most thoroughly tested part of the codebase.
 
 **Spatial join pattern.** All geographic lookups use `LEFT JOIN LATERAL ... ST_Intersects ... ORDER BY ST_Area(ST_Intersection) DESC LIMIT 1` to find the dominant overlay by intersection area. This handles parcels that span multiple zones/overlays.
@@ -113,6 +114,8 @@ Base map:  Frontend → Protomaps PMTiles CDN
 **No routing library.** Frontend uses simple state-based view switching (`"home" | "loading" | "error" | "assessment"`) rather than a router — appropriate for a single-concern tool.
 
 **Domain terminology.** Code uses "regulation", "zone", "parcel", "permit" — never generic names. Enums or const maps for zone types and regulation codes.
+
+**Recent searches.** Last 5 viewed parcels are persisted to localStorage with deduplication by AIN and a max cap. Shown on the home panel for quick re-access.
 
 ## Data layer
 
@@ -147,9 +150,11 @@ All endpoints are unauthenticated. No rate limiting.
 | `/health` | GET | Returns `{"status": "ok"\|"degraded", "db": bool}` |
 | `/api/home` | GET | Homepage metadata: supported zones, data sources, featured parcels |
 | `/api/parcels/search?q=` | GET | Search parcels by address (ILIKE) or APN/AIN (exact match). Returns up to 10 results. |
-| `/api/parcels/{ain}` | GET | Full parcel detail: facts, scope, zoning, overlays, standards, ADU, confidence, assessment, metadata. Returns 404 if not found. |
+| `/api/parcels/{ain}/facts` | GET | Fast parcel detail: facts, zoning, overlays, standards, ADU, confidence — no LLM call. Returns `ParcelDetail`. |
+| `/api/parcels/{ain}/assessment` | GET | LLM-only assessment for a parcel. Returns `Assessment`. Slower (2-5s). |
+| `/api/parcels/{ain}` | GET | Full parcel detail with LLM assessment in a single call (backward-compatible, slower). |
 
-**Response shape for `/api/parcels/{ain}`** — `ParcelDetail` with 9 nested sections:
+**Response shape for `/api/parcels/{ain}/facts`** — `ParcelDetail` with 9 nested sections:
 - `parcel` — ParcelFacts (address, coordinates, lot sqft, year built, use, bedrooms)
 - `scope` — Jurisdiction flags (in_la_city, supported_zone, chapter_1a)
 - `zoning` — Zone string, class, height district, Q/T/D flags, suffixes
@@ -157,7 +162,7 @@ All endpoints are unauthenticated. No rate limiting.
 - `standards` — Height, stories, FAR/RFA, setbacks, density, allowed uses
 - `adu` — Allowed, max sqft, setbacks, notes
 - `confidence` — Level + reasons list
-- `assessment` — Summary, citations, caveats, llm_available flag
+- `assessment` — Summary, citations, caveats, llm_available flag (deterministic fallback from facts endpoint)
 - `metadata` — data_as_of timestamp, source URLs
 
 ## Environment and config
@@ -169,7 +174,7 @@ All endpoints are unauthenticated. No rate limiting.
 | `DATABASE_URL` | `postgresql+psycopg://postgres:postgres@db/regulation_engine` | SQLAlchemy async connection |
 | `OPENAI_API_KEY` | `""` (empty = fallback mode) | OpenAI API credentials |
 | `OPENAI_MODEL` | `gpt-4.1-mini` | LLM model slug |
-| `MARTIN_URL` | `http://martin:3000` | Martin tile server (used by backend, not currently queried) |
+| `MARTIN_URL` | `http://martin:3000` | Martin tile server (referenced in config, not queried by backend) |
 
 **Frontend** (Vite build-time):
 
@@ -177,18 +182,24 @@ All endpoints are unauthenticated. No rate limiting.
 |----------|---------|---------|
 | `VITE_API_URL` | `http://localhost:8000` | Backend API base URL |
 | `VITE_MARTIN_URL` | `http://localhost:3001` | Martin tile server for map layers |
+| `VITE_BASEMAP_TILE_URL` | OpenStreetMap | Raster basemap tile source |
+| `VITE_BASEMAP_ATTRIBUTION` | *(OSM attribution)* | Map attribution text |
 
 **Local dev:** `docker-compose up` starts db (PostGIS on 54320), martin (on 3001), and backend (on 8000). Frontend runs separately via `pnpm dev`.
 
 ## Testing
 
 **Backend** — pytest with `asyncio_mode = "auto"`:
-- `test_rules_engine.py` — 39 tests covering zone string parsing (20), rule lookup (5), height district FAR (5), effective FAR (3), confidence (9), ADU (3). All pure functions, no mocking needed.
-- `test_llm_service.py` — 18 tests covering fallback assessment (9), prompt construction (8), API integration with mocks (18 total including whitelist filtering, refusal handling, error fallback).
-- `conftest.py` — Minimal stub.
+- `test_rules_engine.py` — Zone string parsing, rule lookup, height district FAR, effective FAR, confidence, ADU. All pure functions, no mocking needed.
+- `test_llm_service.py` — Fallback assessment, prompt construction, API integration with mocks (whitelist filtering, refusal handling, error fallback).
+- `test_home_service.py` — Home metadata service with mocked session: sources, featured parcels, missing provenance handling.
+- `test_home_api.py` — Integration test via TestClient for `GET /api/home`.
+- `conftest.py` — Stub.
 - Run: `cd backend && pytest`
 
-**Frontend** — Vitest + Testing Library infrastructure is configured but no component tests exist yet.
+**Frontend** — Vitest + Testing Library:
+- `App.test.tsx` — 4 integration tests: home panel with live metadata, graceful fallback on metadata failure, featured parcel → assessment → home round-trip, recent searches from localStorage.
+- `recentSearches.test.ts` — 2 unit tests: deduplication by AIN and max-5 cap.
 - Run: `cd frontend && pnpm test`
 
 **Ingestion** — No automated tests. Verification via `verify_data.py` (row counts, geometry checks).
@@ -198,6 +209,8 @@ All endpoints are unauthenticated. No rate limiting.
 **Bulk seed over live API queries (ADR-002).** All spatial data is pre-loaded into PostGIS rather than queried from LA County/City ArcGIS endpoints at request time. This gives sub-100ms lookups and eliminates external API dependency at runtime, but means data can be stale between re-ingestions. The tradeoff is acceptable because zoning data changes infrequently.
 
 **Deterministic rules + LLM explanation (ADR-003).** The LLM never decides what the zoning facts are — it only summarizes them. This means the system produces correct answers even when the LLM is unavailable, hallucinates, or is replaced with a different model. The cost is that the LLM summary can't add information the rules engine doesn't already have.
+
+**Two-phase API split.** Facts and LLM assessment are separate endpoints (`/facts` and `/assessment`) rather than a single blocking call. This lets the frontend show deterministic data instantly while the LLM generates in the background. The older single-endpoint (`/{ain}`) is preserved for backward compatibility but is not used by the frontend.
 
 **Curated rule pack over full LAMC encoding (ADR-005).** Only ~15 residential zone classes are hardcoded, covering ~95% of LA City residential parcels. Commercial, industrial, and Chapter 1A zones are explicitly unsupported (confidence drops to Low). This was chosen because encoding the full LAMC is a multi-month effort and 95% coverage is sufficient for MVP.
 
@@ -209,7 +222,7 @@ All endpoints are unauthenticated. No rate limiting.
 
 ## Gotchas
 
-**Zone string parsing is regex-heavy.** The `parse_zone_string` function handles a surprising number of edge cases (parenthesized flags, bracket-format Chapter 1A zones, dash-separated suffixes, D limitation detection). If you modify the regex, run the full test suite — there are 20 parsing tests for a reason.
+**Zone string parsing is regex-heavy.** The `parse_zone_string` function handles a surprising number of edge cases (parenthesized flags, bracket-format Chapter 1A zones, dash-separated suffixes, D limitation detection). If you modify the regex, run the full test suite — there are 20+ parsing tests for a reason.
 
 **Chapter 1A detection has two paths.** A zone is Chapter 1A if (a) the zone string uses bracket format like `[MB3-SH1-1]` OR (b) the community plan is "Central City" or "Central City North". Both must be checked because the data isn't always consistent.
 
@@ -221,8 +234,8 @@ All endpoints are unauthenticated. No rate limiting.
 
 **No database migrations.** Schema changes require re-running `create_tables.py` which drops and recreates tables. This means re-ingesting all data afterward. Fine for early development, will need proper migrations eventually.
 
-**Frontend has no tests.** Vitest infrastructure is wired up but zero component tests exist. The test setup file (`src/test/setup.ts`) is referenced in config but present.
-
 **LLM model env var.** The config default is `gpt-4.1-mini` but the confirmed production model is `gpt-5.4-mini-2026-03-17`, set via `OPENAI_MODEL` environment variable on Railway. Don't rely on the code default.
 
 **Martin tile URLs differ between local and deployed.** Locally Martin is on port 3001 (mapped from container's 3000). On Railway it gets a public URL. The frontend's `VITE_MARTIN_URL` must match the deployment context.
+
+**Two-phase loading race conditions.** The frontend uses a `requestIdRef` counter to discard stale Phase 1 and Phase 2 responses when the user rapidly selects different parcels. If you change the loading flow, preserve this pattern or you'll get UI glitches.

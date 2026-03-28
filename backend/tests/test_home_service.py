@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -24,7 +25,7 @@ class _IterableResult:
     def __init__(self, rows: list[object]) -> None:
         self._rows = rows
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[object]:
         return iter(self._rows)
 
 

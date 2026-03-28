@@ -1,5 +1,7 @@
 /** Assessment display panel for a selected parcel — card-based metric layout. */
 
+import { useState } from "react";
+import clsx from "clsx";
 import {
   AlertTriangle,
   Building2,
@@ -8,6 +10,7 @@ import {
   FileText,
   Home,
   Info,
+  Loader2,
   MapPin,
   Shield,
 } from "lucide-react";
@@ -26,6 +29,7 @@ function isSafeUrl(url: string): boolean {
 
 interface AssessmentPanelProps {
   detail: ParcelDetail;
+  assessmentLoading: boolean;
 }
 
 function Divider(): React.JSX.Element {
@@ -158,24 +162,67 @@ function ScopeWarning({
 
 function SummarySection({
   detail,
+  assessmentLoading,
 }: {
   detail: ParcelDetail;
+  assessmentLoading: boolean;
 }): React.JSX.Element {
   const { assessment } = detail;
+  const [expanded, setExpanded] = useState(false);
+
+  const showClamp = assessment.llm_available && !expanded;
+
+  let badge: React.ReactNode;
+  if (assessmentLoading && !assessment.llm_available) {
+    badge = (
+      <span className="flex items-center gap-1.5 text-xs font-medium text-text-muted">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        Analyzing…
+      </span>
+    );
+  } else if (!assessment.llm_available) {
+    badge = (
+      <span className="text-xs font-medium text-text-muted">Automated</span>
+    );
+  } else {
+    badge = (
+      <span className="text-xs font-medium text-accent-primary">
+        AI-generated
+      </span>
+    );
+  }
+
   return (
     <section className="space-y-2">
       <SectionHeader
         icon={<FileText className="h-4 w-4 text-text-muted" />}
         title="Summary"
-        badge={
-          <span className="text-xs font-medium text-accent-primary">
-            {assessment.llm_available ? "AI-generated" : "Automated"}
-          </span>
-        }
+        badge={badge}
       />
-      <p className="text-[13px] leading-relaxed text-text-secondary">
+      <p
+        className={clsx(
+          "text-[13px] leading-relaxed text-text-secondary",
+          showClamp && "line-clamp-4",
+        )}
+      >
         {assessment.summary}
       </p>
+      {assessment.llm_available && !expanded && (
+        <button
+          onClick={() => setExpanded(true)}
+          className="text-xs font-medium text-accent-primary hover:underline"
+        >
+          Show full analysis
+        </button>
+      )}
+      {assessment.llm_available && expanded && (
+        <button
+          onClick={() => setExpanded(false)}
+          className="text-xs font-medium text-accent-primary hover:underline"
+        >
+          Show less
+        </button>
+      )}
     </section>
   );
 }
@@ -585,11 +632,12 @@ function MetadataFooter({
 
 export function AssessmentPanel({
   detail,
+  assessmentLoading,
 }: AssessmentPanelProps): React.JSX.Element {
   return (
     <div className="space-y-5">
       <ScopeWarning detail={detail} />
-      <SummarySection detail={detail} />
+      <SummarySection detail={detail} assessmentLoading={assessmentLoading} />
       <Divider />
       <ParcelFactsSection detail={detail} />
       <Divider />

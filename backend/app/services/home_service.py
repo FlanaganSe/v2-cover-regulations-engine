@@ -41,8 +41,7 @@ _SOURCE_DESCRIPTORS: Final[dict[str, _SourceDescriptor]] = {
     "zoning": _SourceDescriptor(
         label="NavigateLA Zoning",
         coverage_note=(
-            "Primary zoning layer used to determine "
-            "base zone class and zone string."
+            "Primary zoning layer used to determine base zone class and zone string."
         ),
     ),
     "specific_plans": _SourceDescriptor(
@@ -55,8 +54,7 @@ _SOURCE_DESCRIPTORS: Final[dict[str, _SourceDescriptor]] = {
     "hpoz": _SourceDescriptor(
         label="HPOZ",
         coverage_note=(
-            "Historic preservation overlay intersections "
-            "are flagged for design review."
+            "Historic preservation overlay intersections are flagged for design review."
         ),
     ),
     "community_plan_areas": _SourceDescriptor(
@@ -70,8 +68,7 @@ _SOURCE_DESCRIPTORS: Final[dict[str, _SourceDescriptor]] = {
     "city_boundaries": _SourceDescriptor(
         label="City Boundaries",
         coverage_note=(
-            "Used to confirm whether the parcel is "
-            "inside the City of Los Angeles."
+            "Used to confirm whether the parcel is inside the City of Los Angeles."
         ),
     ),
     "buildings": _SourceDescriptor(
@@ -83,9 +80,7 @@ _SOURCE_DESCRIPTORS: Final[dict[str, _SourceDescriptor]] = {
     ),
 }
 
-_FEATURED_COPY: Final[
-    dict[str, tuple[str, str]]
-] = {
+_FEATURED_COPY: Final[dict[str, tuple[str, str]]] = {
     "clean_supported": (
         "Clean supported parcel",
         "A straightforward parcel in the curated rule set "
@@ -240,7 +235,7 @@ def _build_featured_parcel(
 ) -> FeaturedParcel:
     label, description = _FEATURED_COPY[category]
     return FeaturedParcel(
-        category=category,  # type: ignore[arg-type]
+        category=category,
         label=label,
         description=description,
         ain=row["ain"],
@@ -295,10 +290,7 @@ async def get_home_metadata(session: AsyncSession) -> HomeMetadata:
         _LATEST_SOURCES_QUERY,
         {"table_names": list(_SOURCE_ORDER)},
     )
-    latest_sources = {
-        row.table_name: row.source_url
-        for row in latest_sources_result
-    }
+    latest_sources = {row.table_name: row.source_url for row in latest_sources_result}
 
     featured_parcels = await _collect_featured_parcels(session)
 

@@ -1,0 +1,13 @@
+{
+  "folders": [
+    { "name": "backend", "path": "backend" },
+    { "name": "ingestion", "path": "ingestion" },
+    { "name": "frontend", "path": "frontend" },
+    { "name": "martin", "path": "martin" },
+    { "name": "docs", "path": "docs" },
+    { "name": "architecture", "path": "architecture" }
+  ],
+  "settings": {
+    "editor.formatOnSave": true
+  }
+}

@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas.parcel import (
     Adu,
+    Assessment,
     ConfidenceResponse,
     Metadata,
     OverlayRef,
@@ -22,7 +24,7 @@ from app.schemas.parcel import (
     Standards,
     Zoning,
 )
-from app.services.llm_service import generate_assessment
+from app.services.llm_service import build_fallback_assessment, generate_assessment
 from app.services.rules_engine import (
     compute_confidence,
     get_adu_assessment,
@@ -30,6 +32,10 @@ from app.services.rules_engine import (
     lookup_zone_rule,
     parse_zone_string,
 )
+
+if TYPE_CHECKING:
+    from app.data.zone_rules import AduRules, ZoneRule
+    from app.services.rules_engine import Confidence, ParsedZone
 
 _APN_PATTERN = re.compile(r"^\d{4}-\d{3}-\d{3}$|^\d{10}$")
 
@@ -180,11 +186,25 @@ def _row_to_dict(row: Any) -> dict[str, Any]:
     return dict(row._mapping)
 
 
-async def get_parcel_detail(
+@dataclass(frozen=True)
+class _ParcelContext:
+    """Intermediate context needed for both fast and LLM paths."""
+
+    detail: ParcelDetail
+    parsed_zone: ParsedZone
+    zone_rule: ZoneRule | None
+    confidence: Confidence
+    overlays: Overlays
+    adu_rules: AduRules
+    effective_far: float | None
+    parcel_facts: ParcelFacts
+
+
+async def _build_parcel_context(
     session: AsyncSession,
     ain: str,
-) -> ParcelDetail | None:
-    """Build full parcel detail response for a given AIN."""
+) -> _ParcelContext | None:
+    """Build parcel detail with deterministic fallback assessment."""
     result = await session.execute(_DETAIL_QUERY, {"ain": ain})
     row = result.first()
     if row is None:
@@ -257,15 +277,9 @@ async def get_parcel_detail(
         sqft_main=d["sqft_main"],
     )
 
-    # LLM assessment (falls back to deterministic if unavailable)
-    assessment = await generate_assessment(
-        parcel=parcel_facts,
-        parsed_zone=parsed,
-        zone_rule=zone_rule,
-        confidence=conf,
-        overlays=overlays,
-        adu=adu_rules,
-        effective_far=effective_far,
+    # Deterministic fallback assessment (fast)
+    assessment = build_fallback_assessment(
+        parsed, zone_rule, conf, adu_rules, effective_far
     )
 
     # Metadata
@@ -279,7 +293,7 @@ async def get_parcel_detail(
     if zone_rule and zone_rule.source_url:
         source_urls.append(zone_rule.source_url)
 
-    return ParcelDetail(
+    detail = ParcelDetail(
         parcel=parcel_facts,
         scope=Scope(
             in_la_city=in_la,
@@ -324,5 +338,69 @@ async def get_parcel_detail(
         ),
     )
 
+    return _ParcelContext(
+        detail=detail,
+        parsed_zone=parsed,
+        zone_rule=zone_rule,
+        confidence=conf,
+        overlays=overlays,
+        adu_rules=adu_rules,
+        effective_far=effective_far,
+        parcel_facts=parcel_facts,
+    )
 
-__all__ = ["get_parcel_detail", "search_parcels"]
+
+async def get_parcel_facts(
+    session: AsyncSession,
+    ain: str,
+) -> ParcelDetail | None:
+    """Fast parcel detail with deterministic assessment (no LLM)."""
+    ctx = await _build_parcel_context(session, ain)
+    return ctx.detail if ctx else None
+
+
+async def get_parcel_assessment(
+    session: AsyncSession,
+    ain: str,
+) -> Assessment | None:
+    """LLM assessment for a parcel (slow). Returns None if parcel not found."""
+    ctx = await _build_parcel_context(session, ain)
+    if ctx is None:
+        return None
+    return await generate_assessment(
+        parcel=ctx.parcel_facts,
+        parsed_zone=ctx.parsed_zone,
+        zone_rule=ctx.zone_rule,
+        confidence=ctx.confidence,
+        overlays=ctx.overlays,
+        adu=ctx.adu_rules,
+        effective_far=ctx.effective_far,
+    )
+
+
+async def get_parcel_detail(
+    session: AsyncSession,
+    ain: str,
+) -> ParcelDetail | None:
+    """Full parcel detail with LLM assessment (backward compatible)."""
+    ctx = await _build_parcel_context(session, ain)
+    if ctx is None:
+        return None
+    assessment = await generate_assessment(
+        parcel=ctx.parcel_facts,
+        parsed_zone=ctx.parsed_zone,
+        zone_rule=ctx.zone_rule,
+        confidence=ctx.confidence,
+        overlays=ctx.overlays,
+        adu=ctx.adu_rules,
+        effective_far=ctx.effective_far,
+    )
+    return ctx.detail.model_copy(update={"assessment": assessment})
+
+
+__all__ = [
+    "get_parcel_assessment",
+    "get_parcel_detail",
+    "get_parcel_facts",
+    "search_parcels",
+]

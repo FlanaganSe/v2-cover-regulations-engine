@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "ci": "pnpm build && pnpm lint && pnpm test"
+    "ci": "pnpm run build && pnpm run lint && pnpm run test"
   },
   "dependencies": {
     "@protomaps/basemaps": "^5.7.2",

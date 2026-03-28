@@ -1,0 +1,325 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "LA Regulation Engine",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/home": {
+      "get": {
+        "tags": ["home"],
+        "summary": "Home",
+        "description": "Return homepage metadata for the root workspace state.",
+        "operationId": "home_api_home_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HomeMetadata" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/parcels/search": {
+      "get": {
+        "tags": ["parcels"],
+        "summary": "Search",
+        "description": "Search parcels by address text or APN/AIN.",
+        "operationId": "search_api_parcels_search_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 0,
+              "description": "Address or APN",
+              "default": "",
+              "title": "Q"
+            },
+            "description": "Address or APN"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/ParcelSearchResult" },
+                  "title": "Response Search Api Parcels Search Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/parcels/{ain}": {
+      "get": {
+        "tags": ["parcels"],
+        "summary": "Detail",
+        "description": "Full parcel detail: facts, zoning, overlays, standards, confidence.",
+        "operationId": "detail_api_parcels__ain__get",
+        "parameters": [
+          {
+            "name": "ain",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "title": "Ain" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ParcelDetail" }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HTTPValidationError" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "description": "Health check: verifies database connectivity.",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": { "additionalProperties": true, "type": "object" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Adu": {
+        "properties": {
+          "allowed": { "type": "boolean", "title": "Allowed" },
+          "max_sqft": { "type": "integer", "title": "Max Sqft" },
+          "setbacks_ft": { "type": "integer", "title": "Setbacks Ft" },
+          "notes": { "type": "string", "title": "Notes" }
+        },
+        "type": "object",
+        "required": ["allowed", "max_sqft", "setbacks_ft", "notes"],
+        "title": "Adu"
+      },
+      "Assessment": {
+        "properties": {
+          "summary": { "type": "string", "title": "Summary" },
+          "citations": { "items": { "type": "string" }, "type": "array", "title": "Citations", "default": [] },
+          "caveats": { "items": { "type": "string" }, "type": "array", "title": "Caveats", "default": [] },
+          "llm_available": { "type": "boolean", "title": "Llm Available" }
+        },
+        "type": "object",
+        "required": ["summary", "llm_available"],
+        "title": "Assessment",
+        "description": "LLM-generated or deterministic assessment of zoning feasibility."
+      },
+      "ConfidenceResponse": {
+        "properties": {
+          "level": { "type": "string", "title": "Level" },
+          "reasons": { "items": { "type": "string" }, "type": "array", "title": "Reasons" }
+        },
+        "type": "object",
+        "required": ["level", "reasons"],
+        "title": "ConfidenceResponse"
+      },
+      "FeaturedParcel": {
+        "properties": {
+          "category": { "type": "string", "enum": ["clean_supported", "multifamily", "specific_plan", "hpoz"], "title": "Category" },
+          "label": { "type": "string", "title": "Label" },
+          "description": { "type": "string", "title": "Description" },
+          "ain": { "type": "string", "title": "Ain" },
+          "apn": { "anyOf": [{ "type": "string" }, { "type": "null" }], "title": "Apn" },
+          "address": { "anyOf": [{ "type": "string" }, { "type": "null" }], "title": "Address" },
+          "zone_class": { "anyOf": [{ "type": "string" }, { "type": "null" }], "title": "Zone Class" }
+        },
+        "type": "object",
+        "required": ["category", "label", "description", "ain"],
+        "title": "FeaturedParcel"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": { "items": { "$ref": "#/components/schemas/ValidationError" }, "type": "array", "title": "Detail" }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HomeMetadata": {
+        "properties": {
+          "data_as_of": { "anyOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }], "title": "Data As Of" },
+          "supported_zone_classes": { "items": { "type": "string" }, "type": "array", "title": "Supported Zone Classes" },
+          "sources": { "items": { "$ref": "#/components/schemas/HomeSource" }, "type": "array", "title": "Sources" },
+          "featured_parcels": { "items": { "$ref": "#/components/schemas/FeaturedParcel" }, "type": "array", "title": "Featured Parcels" }
+        },
+        "type": "object",
+        "required": ["supported_zone_classes", "sources", "featured_parcels"],
+        "title": "HomeMetadata"
+      },
+      "HomeSource": {
+        "properties": {
+          "id": { "type": "string", "title": "Id" },
+          "label": { "type": "string", "title": "Label" },
+          "source_url": { "anyOf": [{ "type": "string" }, { "type": "null" }], "title": "Source Url" },
+          "coverage_note": { "type": "string", "title": "Coverage Note" }
+        },
+        "type": "object",
+        "required": ["id", "label", "coverage_note"],
+        "title": "HomeSource"
+      },
+      "Metadata": {
+        "properties": {
+          "data_as_of": { "anyOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }], "title": "Data As Of" },
+          "source_urls": { "items": { "type": "string" }, "type": "array", "title": "Source Urls", "default": [] }
+        },
+        "type": "object",
+        "title": "Metadata"
+      },
+      "OverlayRef": {
+        "properties": {
+          "name": { "type": "string", "title": "Name" },
+          "url": { "anyOf": [{ "type": "string" }, { "type": "null" }], "title": "Url" }
+        },
+        "type": "object",
+        "required": ["name"],
+        "title": "OverlayRef"
+      },
+      "Overlays": {
+        "properties": {
+          "specific_plan": { "anyOf": [{ "$ref": "#/components/schemas/OverlayRef" }, { "type": "null" }] },
+          "hpoz": { "anyOf": [{ "$ref": "#/components/schemas/OverlayRef" }, { "type": "null" }] },
+          "community_plan": { "anyOf": [{ "type": "string" }, { "type": "null" }], "title": "Community Plan" },
+          "general_plan_lu": { "anyOf": [{ "type": "string" }, { "type": "null" }], "title": "General Plan Lu" }
+        },
+        "type": "object",
+        "title": "Overlays"
+      },
+      "ParcelDetail": {
+        "properties": {
+          "parcel": { "$ref": "#/components/schemas/ParcelFacts" },
+          "scope": { "$ref": "#/components/schemas/Scope" },
+          "zoning": { "$ref": "#/components/schemas/Zoning" },
+          "overlays": { "$ref": "#/components/schemas/Overlays" },
+          "standards": { "$ref": "#/components/schemas/Standards" },
+          "adu": { "$ref": "#/components/schemas/Adu" },
+          "confidence": { "$ref": "#/components/schemas/ConfidenceResponse" },
+          "assessment": { "$ref": "#/components/schemas/Assessment" },
+          "metadata": { "$ref": "#/components/schemas/Metadata" }
+        },
+        "type": "object",
+        "required": ["parcel", "scope", "zoning", "overlays", "standards", "adu", "confidence", "assessment", "metadata"],
+        "title": "ParcelDetail",
+        "description": "Full parcel detail response."
+      },
+      "ParcelFacts": {
+        "properties": {
+          "ain": { "type": "string", "title": "Ain" },
+          "apn": { "anyOf": [{ "type": "string" }, { "type": "null" }], "title": "Apn" },
+          "address": { "anyOf": [{ "type": "string" }, { "type": "null" }], "title": "Address" },
+          "center_lat": { "anyOf": [{ "type": "number" }, { "type": "null" }], "title": "Center Lat" },
+          "center_lon": { "anyOf": [{ "type": "number" }, { "type": "null" }], "title": "Center Lon" },
+          "lot_sqft": { "anyOf": [{ "type": "number" }, { "type": "null" }], "title": "Lot Sqft" },
+          "year_built": { "anyOf": [{ "type": "integer" }, { "type": "null" }], "title": "Year Built" },
+          "use_description": { "anyOf": [{ "type": "string" }, { "type": "null" }], "title": "Use Description" },
+          "bedrooms": { "anyOf": [{ "type": "integer" }, { "type": "null" }], "title": "Bedrooms" },
+          "sqft_main": { "anyOf": [{ "type": "integer" }, { "type": "null" }], "title": "Sqft Main" }
+        },
+        "type": "object",
+        "required": ["ain"],
+        "title": "ParcelFacts"
+      },
+      "ParcelSearchResult": {
+        "properties": {
+          "ain": { "type": "string", "title": "Ain" },
+          "apn": { "anyOf": [{ "type": "string" }, { "type": "null" }], "title": "Apn" },
+          "address": { "anyOf": [{ "type": "string" }, { "type": "null" }], "title": "Address" },
+          "zone_class": { "anyOf": [{ "type": "string" }, { "type": "null" }], "title": "Zone Class" }
+        },
+        "type": "object",
+        "required": ["ain"],
+        "title": "ParcelSearchResult",
+        "description": "Single result from parcel search."
+      },
+      "Scope": {
+        "properties": {
+          "in_la_city": { "type": "boolean", "title": "In La City" },
+          "supported_zone": { "type": "boolean", "title": "Supported Zone" },
+          "chapter_1a": { "type": "boolean", "title": "Chapter 1A" }
+        },
+        "type": "object",
+        "required": ["in_la_city", "supported_zone", "chapter_1a"],
+        "title": "Scope"
+      },
+      "Standards": {
+        "properties": {
+          "height_ft": { "anyOf": [{ "type": "integer" }, { "type": "null" }], "title": "Height Ft" },
+          "stories": { "anyOf": [{ "type": "integer" }, { "type": "null" }], "title": "Stories" },
+          "far_or_rfa": { "anyOf": [{ "type": "number" }, { "type": "null" }], "title": "Far Or Rfa" },
+          "far_type": { "anyOf": [{ "type": "string" }, { "type": "null" }], "title": "Far Type" },
+          "front_setback_ft": { "anyOf": [{ "type": "string" }, { "type": "null" }], "title": "Front Setback Ft" },
+          "side_setback_ft": { "anyOf": [{ "type": "string" }, { "type": "null" }], "title": "Side Setback Ft" },
+          "rear_setback_ft": { "anyOf": [{ "type": "string" }, { "type": "null" }], "title": "Rear Setback Ft" },
+          "density_description": { "anyOf": [{ "type": "string" }, { "type": "null" }], "title": "Density Description" },
+          "allowed_uses": { "items": { "type": "string" }, "type": "array", "title": "Allowed Uses", "default": [] }
+        },
+        "type": "object",
+        "title": "Standards"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": { "items": { "anyOf": [{ "type": "string" }, { "type": "integer" }] }, "type": "array", "title": "Location" },
+          "msg": { "type": "string", "title": "Message" },
+          "type": { "type": "string", "title": "Error Type" },
+          "input": { "title": "Input" },
+          "ctx": { "type": "object", "title": "Context" }
+        },
+        "type": "object",
+        "required": ["loc", "msg", "type"],
+        "title": "ValidationError"
+      },
+      "Zoning": {
+        "properties": {
+          "zone_string": { "anyOf": [{ "type": "string" }, { "type": "null" }], "title": "Zone String" },
+          "zone_class": { "anyOf": [{ "type": "string" }, { "type": "null" }], "title": "Zone Class" },
+          "height_district": { "anyOf": [{ "type": "string" }, { "type": "null" }], "title": "Height District" },
+          "q_flag": { "type": "boolean", "title": "Q Flag", "default": false },
+          "d_flag": { "type": "boolean", "title": "D Flag", "default": false },
+          "t_flag": { "type": "boolean", "title": "T Flag", "default": false },
+          "suffixes": { "items": { "type": "string" }, "type": "array", "title": "Suffixes", "default": [] }
+        },
+        "type": "object",
+        "title": "Zoning"
+      }
+    }
+  }
+}

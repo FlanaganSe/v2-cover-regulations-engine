@@ -177,6 +177,13 @@ describe("App homepage flow", () => {
   it("loads a featured parcel into the assessment view and returns home", async () => {
     const user = userEvent.setup();
 
+    const llmAssessment = {
+      summary: "AI-generated: This R1-1 parcel supports a single-family home.",
+      citations: ["LAMC §12.08"],
+      caveats: ["Informational purposes only."],
+      llm_available: true,
+    };
+
     fetchMock.mockImplementation(async (input) => {
       const url = String(input);
       if (url.endsWith("/api/home")) {
@@ -185,8 +192,11 @@ describe("App homepage flow", () => {
       if (url.includes("/api/parcels/search")) {
         return jsonResponse([]);
       }
-      if (url.endsWith("/api/parcels/1234567890")) {
+      if (url.endsWith("/api/parcels/1234567890/facts")) {
         return jsonResponse(parcelDetailFixture);
+      }
+      if (url.endsWith("/api/parcels/1234567890/assessment")) {
+        return jsonResponse(llmAssessment);
       }
       throw new Error(`Unexpected URL: ${url}`);
     });
@@ -198,9 +208,7 @@ describe("App homepage flow", () => {
     );
 
     expect(await screen.findByText("Summary")).toBeInTheDocument();
-    expect(
-      await screen.findByText(parcelDetailFixture.assessment.summary),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(llmAssessment.summary)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /^home$/i }));
 
@@ -236,8 +244,14 @@ describe("App homepage flow", () => {
       if (url.includes("/api/parcels/search")) {
         return jsonResponse([]);
       }
-      if (url.endsWith("/api/parcels/1234567890")) {
+      if (url.endsWith("/api/parcels/1234567890/facts")) {
         return jsonResponse(parcelDetailFixture);
+      }
+      if (url.endsWith("/api/parcels/1234567890/assessment")) {
+        return jsonResponse({
+          ...parcelDetailFixture.assessment,
+          llm_available: true,
+        });
       }
       throw new Error(`Unexpected URL: ${url}`);
     });

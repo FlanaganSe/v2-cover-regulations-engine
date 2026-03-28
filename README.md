@@ -21,14 +21,14 @@ The key design decision: all GIS data is bulk-seeded into PostGIS from public Ar
 
 ## Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Backend | Python 3.12, FastAPI, async SQLAlchemy, GeoAlchemy2 |
-| Frontend | TypeScript 5.9, React 19, Vite 8, Tailwind CSS 4 |
-| Map | MapLibre GL JS, Martin vector tile server, OSM raster base |
-| Database | PostgreSQL 17 + PostGIS |
-| LLM | OpenAI (gpt-5.4-mini), structured output, citation whitelist |
-| Deployment | Railway (all 4 services) |
+| Layer      | Technology                                                   |
+| ---------- | ------------------------------------------------------------ |
+| Backend    | Python 3.12, FastAPI, async SQLAlchemy, GeoAlchemy2          |
+| Frontend   | TypeScript 5.9, React 19, Vite 8, Tailwind CSS 4             |
+| Map        | MapLibre GL JS, Martin vector tile server, OSM raster base   |
+| Database   | PostgreSQL 17 + PostGIS                                      |
+| LLM        | OpenAI (gpt-5.4-mini), structured output, citation whitelist |
+| Deployment | Railway (all 4 services)                                     |
 
 ## Project structure
 
@@ -96,57 +96,59 @@ The frontend runs at `http://localhost:5173`, backend at `http://localhost:8000`
 
 **Backend** (set in `.env`, consumed by Docker Compose):
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `DATABASE_URL` | `postgresql+psycopg://postgres:postgres@db/regulation_engine` | Database connection |
-| `OPENAI_API_KEY` | *(empty)* | OpenAI credentials. Empty = deterministic fallback |
-| `OPENAI_MODEL` | `gpt-4.1-mini` | Model slug. Production uses `gpt-5.4-mini-2026-03-17` |
-| `MARTIN_URL` | `http://martin:3000` | Martin tile server |
+| Variable         | Default                                                       | Purpose                                            |
+| ---------------- | ------------------------------------------------------------- | -------------------------------------------------- |
+| `DATABASE_URL`   | `postgresql+psycopg://postgres:postgres@db/regulation_engine` | Database connection                                |
+| `OPENAI_API_KEY` | _(empty)_                                                     | OpenAI credentials. Empty = deterministic fallback |
+| `OPENAI_MODEL`   | `gpt-5.4-mini-2026-03-17`                                     | OpenAI model slug                                  |
+| `MARTIN_URL`     | `http://martin:3000`                                          | Martin tile server                                 |
 
 **Frontend** (Vite build-time):
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `VITE_API_URL` | `http://localhost:8000` | Backend API URL |
+| Variable          | Default                 | Purpose                |
+| ----------------- | ----------------------- | ---------------------- |
+| `VITE_API_URL`    | `http://localhost:8000` | Backend API URL        |
 | `VITE_MARTIN_URL` | `http://localhost:3001` | Martin tile server URL |
 
 ## API
 
 All endpoints are unauthenticated.
 
-| Endpoint | Purpose |
-|----------|---------|
-| `GET /health` | Health check (`{"status": "ok", "db": true}`) |
-| `GET /api/home` | Homepage metadata, featured parcels, supported zones |
-| `GET /api/parcels/search?q=<query>` | Search by address (ILIKE) or APN (exact). Returns up to 10 results. |
-| `GET /api/parcels/{ain}` | Full parcel assessment: zoning, standards, overlays, ADU, confidence, LLM summary |
+| Endpoint                            | Purpose                                                                            |
+| ----------------------------------- | ---------------------------------------------------------------------------------- |
+| `GET /health`                       | Health check (`{"status": "ok", "db": true}`)                                      |
+| `GET /api/home`                     | Homepage metadata, featured parcels, supported zones                               |
+| `GET /api/parcels/search?q=<query>` | Search by address (ILIKE) or APN (exact). Returns up to 10 results                 |
+| `GET /api/parcels/{ain}/facts`      | Fast deterministic detail: zoning, standards, overlays, ADU, confidence (no LLM)   |
+| `GET /api/parcels/{ain}/assessment` | LLM-generated summary and citations (slower, non-critical)                         |
+| `GET /api/parcels/{ain}`            | Full detail with LLM assessment (backward-compatible, combines facts + assessment) |
 
-The detail response (`/api/parcels/{ain}`) returns a `ParcelDetail` object with 9 sections: parcel facts, scope, zoning, overlays, development standards, ADU assessment, confidence, assessment summary, and metadata.
+The frontend uses a two-phase loading pattern: `/{ain}/facts` returns instantly with deterministic data, then `/{ain}/assessment` streams in the LLM summary. The combined `/{ain}` endpoint exists for backward compatibility.
 
 ## Testing
 
 ```bash
-# Backend (57 tests — rules engine, LLM service, home API)
+# Backend (81 tests — rules engine, LLM service, home API)
 cd backend && pytest
 
-# Frontend (infrastructure configured, no tests yet)
+# Frontend (6 tests — app flow, recent searches)
 cd frontend && pnpm test
 
 # Lint + format check
 cd backend && ruff check . && ruff format --check .
-cd frontend && pnpm ci
+cd frontend && pnpm run lint
 ```
 
 ## Deployment
 
 All 4 services run on Railway:
 
-| Service | Source | Notes |
-|---------|--------|-------|
-| **PostgreSQL + PostGIS** | Railway managed DB | Data persists across deploys |
-| **Martin** | `martin/Dockerfile` | Auto-serves PostGIS tables as vector tiles |
-| **Backend** | `backend/Dockerfile` | FastAPI on uvicorn |
-| **Frontend** | `frontend/Dockerfile` | Vite build → nginx (SPA routing) |
+| Service                  | Source                | Notes                                      |
+| ------------------------ | --------------------- | ------------------------------------------ |
+| **PostgreSQL + PostGIS** | Railway managed DB    | Data persists across deploys               |
+| **Martin**               | `martin/Dockerfile`   | Auto-serves PostGIS tables as vector tiles |
+| **Backend**              | `backend/Dockerfile`  | FastAPI on uvicorn                         |
+| **Frontend**             | `frontend/Dockerfile` | Vite build → nginx (SPA routing)           |
 
 GitHub auto-deploy is available via Railway's native integration — no CI pipeline needed. See [docs/deployment.md](docs/deployment.md).
 
@@ -160,9 +162,9 @@ GitHub auto-deploy is available via Railway's native integration — no CI pipel
 
 ## Docs
 
-| Document | What it covers |
-|----------|---------------|
+| Document                                     | What it covers                                                           |
+| -------------------------------------------- | ------------------------------------------------------------------------ |
 | [Product overview](docs/product-overview.md) | Deep-dive: architecture, data flow, core concepts, key patterns, gotchas |
-| [Architecture decisions](docs/decisions.md) | ADRs: why PostGIS bulk seed, deterministic-first, curated rules, Railway |
-| [Data sources](docs/DATA_SOURCES.md) | All 8 ArcGIS endpoints, field mappings, ingestion strategy, edge cases |
-| [Deployment](docs/deployment.md) | Railway GitHub auto-deploy setup (per-service configuration) |
+| [Architecture decisions](docs/decisions.md)  | ADRs: why PostGIS bulk seed, deterministic-first, curated rules, Railway |
+| [Data sources](docs/DATA_SOURCES.md)         | All 8 ArcGIS endpoints, field mappings, ingestion strategy, edge cases   |
+| [Deployment](docs/deployment.md)             | Railway GitHub auto-deploy setup (per-service configuration)             |

@@ -1,12 +1,16 @@
 /** Main app layout: map + search bar + assessment sidebar. */
 
-import { Building2 } from "lucide-react";
+import { Building2, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AssessmentPanel } from "./components/AssessmentPanel";
 import { HomePanel } from "./components/HomePanel";
 import { Map } from "./components/Map";
 import { SearchBar } from "./components/SearchBar";
-import { getHomeMetadata, getParcelDetail } from "./lib/api";
+import {
+  getHomeMetadata,
+  getParcelAssessment,
+  getParcelFacts,
+} from "./lib/api";
 import {
   addRecentSearch,
   loadRecentSearches,
@@ -60,6 +64,7 @@ export function App(): React.JSX.Element {
   const [recentSearches, setRecentSearches] = useState<RecentSearchItem[]>(() =>
     loadRecentSearches(),
   );
+  const [assessmentLoading, setAssessmentLoading] = useState(false);
   const requestIdRef = useRef(0);
 
   useEffect(() => {
@@ -103,30 +108,50 @@ export function App(): React.JSX.Element {
     setViewState("loading");
     setError(null);
     setDetail(null);
+    setAssessmentLoading(false);
 
     try {
-      const data = await getParcelDetail(result.ain);
+      // Phase 1: fast deterministic data (~200ms)
+      const facts = await getParcelFacts(result.ain);
       if (thisRequest !== requestIdRef.current) return; // stale
-      if (!data) {
+      if (!facts) {
         setError("Parcel not found.");
         setViewState("error");
         return;
       }
-      setDetail(data);
+      setDetail(facts);
       setViewState("assessment");
-      if (data.parcel.center_lat != null && data.parcel.center_lon != null) {
-        setSelectedLat(data.parcel.center_lat);
-        setSelectedLon(data.parcel.center_lon);
+      setAssessmentLoading(true);
+      if (facts.parcel.center_lat != null && facts.parcel.center_lon != null) {
+        setSelectedLat(facts.parcel.center_lat);
+        setSelectedLon(facts.parcel.center_lon);
       }
 
       setRecentSearches((current) =>
         addRecentSearch(current, {
-          ain: data.parcel.ain,
-          apn: data.parcel.apn,
-          address: data.parcel.address,
-          zone_class: data.zoning.zone_class,
+          ain: facts.parcel.ain,
+          apn: facts.parcel.apn,
+          address: facts.parcel.address,
+          zone_class: facts.zoning.zone_class,
         }),
       );
+
+      // Phase 2: LLM assessment (2-5s, non-critical)
+      try {
+        const llmAssessment = await getParcelAssessment(result.ain);
+        if (thisRequest !== requestIdRef.current) return; // stale
+        if (llmAssessment) {
+          setDetail((prev) =>
+            prev ? { ...prev, assessment: llmAssessment } : prev,
+          );
+        }
+      } catch {
+        // LLM failure is non-critical; deterministic assessment remains
+      } finally {
+        if (thisRequest === requestIdRef.current) {
+          setAssessmentLoading(false);
+        }
+      }
     } catch {
       if (thisRequest !== requestIdRef.current) return; // stale
       setError("Failed to load parcel details.");
@@ -197,7 +222,8 @@ export function App(): React.JSX.Element {
           }`}
         >
           {viewState === "loading" && (
-            <div className="flex items-center justify-center py-12 text-sm text-text-muted">
+            <div className="flex items-center justify-center gap-2 py-12 text-sm text-text-muted">
+              <Loader2 className="h-4 w-4 animate-spin" />
               Loading...
             </div>
           )}
@@ -207,7 +233,10 @@ export function App(): React.JSX.Element {
             </div>
           )}
           {viewState === "assessment" && detail && (
-            <AssessmentPanel detail={detail} />
+            <AssessmentPanel
+              detail={detail}
+              assessmentLoading={assessmentLoading}
+            />
           )}
           {viewState === "home" && (
             <HomePanel

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
@@ -12,7 +13,7 @@ from app.main import app
 from app.schemas.home import FeaturedParcel, HomeMetadata, HomeSource
 
 
-async def _dummy_session():
+async def _dummy_session() -> AsyncGenerator[object, None]:
     yield object()
 
 
