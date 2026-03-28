@@ -52,12 +52,12 @@ export function Map({
   }, []);
 
   const setHoverFilter = useCallback((ain: string | null) => {
+    hoveredAinRef.current = ain;
     const map = mapRef.current?.getMap();
     if (!map || !map.isStyleLoaded()) return;
     const filter = ain ? ainFilter(ain) : NONE_FILTER;
     map.setFilter("parcel-hover-fill", filter);
     map.setFilter("parcel-hover-outline", filter);
-    hoveredAinRef.current = ain;
   }, []);
 
   const handleMouseMove = useCallback(
@@ -80,6 +80,7 @@ export function Map({
       const props = evt.features?.[0]?.properties;
       const ain = typeof props?.ain === "string" ? props.ain : undefined;
       if (!ain || !onParcelClick) return;
+      setHoverFilter(null);
       onParcelClick({
         ain,
         apn: typeof props?.apn === "string" ? props.apn : null,
@@ -87,7 +88,7 @@ export function Map({
         zone_class: null,
       });
     },
-    [onParcelClick],
+    [onParcelClick, setHoverFilter],
   );
 
   // Fly to selected parcel
@@ -109,6 +110,9 @@ export function Map({
     if (!map) return;
 
     const updateHighlight = (): void => {
+      // Clear hover so it doesn't linger after search-based selection
+      setHoverFilter(null);
+
       // Clear previous
       if (prevAinRef.current) {
         map.setFilter("selected-parcel-fill", [
@@ -146,7 +150,7 @@ export function Map({
         map.off("styledata", updateHighlight);
       };
     }
-  }, [selectedAin]);
+  }, [selectedAin, setHoverFilter]);
 
   return (
     <ReactMapGL

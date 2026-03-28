@@ -135,6 +135,7 @@ export function buildMapStyle(): StyleSpecification {
           "fill-color": "#000000",
           "fill-opacity": 0,
         },
+        minzoom: 15,
       },
       {
         id: "parcel-hover-fill",
@@ -146,6 +147,7 @@ export function buildMapStyle(): StyleSpecification {
           "fill-color": "#2196F3",
           "fill-opacity": 0.12,
         },
+        minzoom: 15,
       },
       {
         id: "parcel-hover-outline",
@@ -157,6 +159,7 @@ export function buildMapStyle(): StyleSpecification {
           "line-color": "#1565C0",
           "line-width": 1.5,
         },
+        minzoom: 15,
       },
       {
         id: "selected-parcel-fill",
