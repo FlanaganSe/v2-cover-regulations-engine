@@ -38,6 +38,9 @@ const ZONE_COLORS: Record<string, string> = {
 
 const DEFAULT_ZONE_COLOR = "#9E9E9E";
 
+/** Layer ID used for parcel hover/click hit-testing. */
+export const PARCEL_INTERACTIVE_LAYER = "parcel-interactive";
+
 /** Build the zone color match expression for MapLibre. */
 function buildZoneColorExpression(): (string | string[])[] {
   const expr: (string | string[])[] = ["match", ["get", "zone_class"]];
@@ -122,6 +125,38 @@ export function buildMapStyle(): StyleSpecification {
           "line-width": 0.5,
         },
         minzoom: 15,
+      },
+      {
+        id: PARCEL_INTERACTIVE_LAYER,
+        type: "fill",
+        source: "parcels",
+        "source-layer": "parcels",
+        paint: {
+          "fill-color": "#000000",
+          "fill-opacity": 0,
+        },
+      },
+      {
+        id: "parcel-hover-fill",
+        type: "fill",
+        source: "parcels",
+        "source-layer": "parcels",
+        filter: ["==", ["get", "ain"], "__none__"],
+        paint: {
+          "fill-color": "#2196F3",
+          "fill-opacity": 0.12,
+        },
+      },
+      {
+        id: "parcel-hover-outline",
+        type: "line",
+        source: "parcels",
+        "source-layer": "parcels",
+        filter: ["==", ["get", "ain"], "__none__"],
+        paint: {
+          "line-color": "#1565C0",
+          "line-width": 1.5,
+        },
       },
       {
         id: "selected-parcel-fill",

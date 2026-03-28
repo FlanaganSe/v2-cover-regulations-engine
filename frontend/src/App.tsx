@@ -211,6 +211,7 @@ export function App(): React.JSX.Element {
             selectedLat={selectedLat}
             selectedLon={selectedLon}
             selectedAin={selectedAin}
+            onParcelClick={handleSelect}
           />
           <ZoneLegend />
         </div>
