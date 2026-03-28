@@ -1,66 +1,41 @@
 # Product Overview
 
-## What this is
+## What This Is
 
-A zoning regulation lookup tool for Los Angeles residential parcels. A user searches for a property by address or APN, and the system returns a comprehensive assessment: what zone the parcel is in, what can be built there (height, FAR, setbacks, density, ADU eligibility), what overlays apply, and a confidence score indicating how reliable the answer is. An LLM generates a natural-language summary, but every number comes from a deterministic rules engine — the LLM explains facts, it doesn't decide them.
+A zoning regulation lookup tool for Los Angeles residential parcels. A user searches by address or APN, and the system returns a comprehensive assessment: zone class, development standards (height, FAR, setbacks, density), ADU eligibility, overlay warnings, and a confidence score. An LLM generates a plain-language summary, but every number comes from a deterministic rules engine.
 
-The target audience is homeowners, developers, and planners who need quick zoning answers without reading the LAMC. The system covers ~15 residential zone classes representing ~95% of LA City residential parcels.
+The target audience is homeowners, developers, and planners who need quick zoning answers without reading the LAMC. Covers ~15 residential zone classes representing ~95% of LA City residential parcels.
 
-## Stack
+## Request Flow
 
-- **Backend:** Python 3.12, FastAPI, async SQLAlchemy + GeoAlchemy2, Pydantic 2
-- **Frontend:** TypeScript 5.9, React 19, Vite 8, Tailwind CSS 4
-- **Map:** MapLibre GL JS + react-map-gl, Martin vector tile server, Protomaps PMTiles base
-- **Database:** PostgreSQL 17 + PostGIS (spatial queries)
-- **LLM:** OpenAI (gpt-5.4-mini via `OPENAI_MODEL` env var), structured output with deterministic fallback
-- **Package managers:** uv (backend), pnpm (frontend)
-- **Linting/formatting:** Ruff (backend), ESLint + Prettier (frontend)
-- **Testing:** pytest + pytest-asyncio (backend), Vitest + Testing Library (frontend)
-- **Deployment:** Railway Hobby (all services), AWS deferred to post-MVP
+**Two-phase loading** splits parcel lookup into a fast deterministic phase and a slow LLM phase:
 
-## Architecture
-
-```
-User → Frontend (React SPA) → Backend API (FastAPI) → PostgreSQL + PostGIS
-                                    ↓
-                              Rules Engine (pure functions)
-                                    ↓
-                              LLM Service (OpenAI, optional)
-
-Map tiles: Frontend → Martin tile server → PostGIS (zoning, parcels, buildings)
-Base map:  Frontend → OSM raster tiles / Protomaps PMTiles
-```
-
-**Request flow for parcel detail (two-phase loading):**
-
-1. User searches by address or APN → frontend calls `GET /api/parcels/search`
+1. User searches by address or APN → `GET /api/parcels/search`
 2. Backend runs ILIKE address search or exact AIN match with a lateral join to get dominant zone
-3. User selects a result → frontend initiates two-phase load:
-   - **Phase 1 (fast, ~200ms):** `GET /api/parcels/{ain}/facts` — spatial join query fetches parcel facts, dominant zoning, overlays, then rules engine computes standards, FAR, ADU, confidence. Returns deterministic `ParcelDetail` immediately. Sidebar transitions to assessment view.
-   - **Phase 2 (slow, 2-5s, non-critical):** `GET /api/parcels/{ain}/assessment` — LLM service builds grounded prompt from all deterministic facts, calls OpenAI with structured output, filters citations. On any failure → deterministic fallback remains. Assessment merges into the existing detail when ready.
-4. Frontend renders the assessment panel (facts, zoning, standards, overlays, ADU, confidence badge, summary, citations, caveats)
+3. User selects a result → frontend initiates two phases:
+   - **Phase 1 (~200ms):** `GET /api/parcels/{ain}/facts` — spatial joins fetch parcel facts, zoning, overlays. Rules engine computes standards, FAR, ADU, confidence. Returns `ParcelDetail` immediately.
+   - **Phase 2 (2-5s, non-critical):** `GET /api/parcels/{ain}/assessment` — LLM builds grounded prompt from deterministic facts, calls OpenAI with structured output, filters citations. On failure → deterministic fallback remains.
+4. Frontend renders assessment panel (facts, zoning, standards, overlays, ADU, confidence, summary, citations)
 
-**Key architectural decision:** All spatial data is bulk-seeded from LA County/City ArcGIS endpoints into PostGIS. Lookups are sub-100ms spatial joins, not live API calls. Data freshness comes from periodic re-ingestion.
-
-## Directory structure
+## Directory Structure
 
 ```
 ├── backend/                 # FastAPI application
 │   ├── app/
-│   │   ├── main.py          # App factory, health endpoint, CORS, router registration
-│   │   ├── config.py        # Pydantic BaseSettings (DATABASE_URL, OPENAI_API_KEY, etc.)
-│   │   ├── database.py      # Async SQLAlchemy engine + session dependency
-│   │   ├── routers/         # FastAPI route handlers (parcels, home)
-│   │   ├── models/          # SQLAlchemy ORM models (Parcel with PostGIS geometry)
-│   │   ├── schemas/         # Pydantic response models (ParcelDetail, HomeMetadata)
-│   │   ├── services/        # Business logic (parcel_service, rules_engine, llm_service, home_service)
-│   │   └── data/            # Hardcoded zone rules (zone_rules.py)
-│   └── tests/               # pytest tests (rules engine, LLM service, home service, home API)
+│   │   ├── main.py          # App factory, health, CORS, router registration
+│   │   ├── config.py        # Pydantic BaseSettings
+│   │   ├── database.py      # Async SQLAlchemy engine + session
+│   │   ├── routers/         # Route handlers (parcels, home)
+│   │   ├── models/          # SQLAlchemy ORM models
+│   │   ├── schemas/         # Pydantic response models
+│   │   ├── services/        # Business logic (parcel, rules, llm, home)
+│   │   └── data/            # Hardcoded zone rules
+│   └── tests/
 ├── frontend/                # React SPA
 │   └── src/
-│       ├── components/      # AssessmentPanel, HomePanel, Map, SearchBar, ConfidenceBadge
-│       ├── hooks/           # useParcelSearch (debounced search with AbortController)
-│       ├── lib/             # api.ts (fetch client), mapStyle.ts, recentSearches.ts
+│       ├── components/      # AssessmentPanel, HomePanel, Map, SearchBar
+│       ├── hooks/           # useParcelSearch (debounced, AbortController)
+│       ├── lib/             # api.ts, mapStyle.ts, recentSearches.ts
 │       └── types/           # TypeScript interfaces mirroring backend schemas
 ├── ingestion/               # Standalone data pipeline
 │   ├── config.py            # ArcGIS endpoint URLs, demo bboxes
@@ -72,170 +47,109 @@ Base map:  Frontend → OSM raster tiles / Protomaps PMTiles
 ├── martin/                  # Vector tile server (Dockerfile only)
 ├── docs/                    # ADRs, data source spec, deployment guide
 ├── architecture/            # D2 diagram source + rendered PNG
-└── docker-compose.yml       # Local dev: db (PostGIS), martin, backend
+└── docker-compose.yml       # Local dev: db, martin, backend
 ```
 
-## Core concepts
+## Core Concepts
 
-**Parcel** — A real property identified by AIN (Assessor Identification Number). Has geometry (MultiPolygon), address, property facts (year built, sqft, bedrooms), and valuation. The central entity everything revolves around.
+**Parcel** — A real property identified by AIN (Assessor Identification Number). Has geometry, address, property facts, and valuation. The central entity.
 
-**Zone string** — The raw `ZONE_CMPLT` value from LA City zoning data (e.g., `(T)(Q)RD1.5-1D-CDO-RIO`). A compressed encoding of zone class, height district, prefix flags, D limitation, and overlay suffixes. The rules engine regex-parses this into structured components.
+**Zone string** — The raw `ZONE_CMPLT` value from LA City zoning data (e.g., `(T)(Q)RD1.5-1D-CDO-RIO`). Encodes zone class, height district, prefix flags, D limitation, and overlay suffixes. The rules engine regex-parses this into structured components.
 
-**Zone class** — The base zoning designation (R1, RD1.5, R3, etc.). Maps to a `ZoneRule` containing development standards: height, stories, FAR/RFA, setbacks, density, allowed uses, LAMC section.
+**Zone class** — The base zoning designation (R1, RD1.5, R3, etc.). Maps to a `ZoneRule` with development standards: height, stories, FAR/RFA, setbacks, density, allowed uses.
 
 **Height district** — A modifier (1, 1L, 1VL, 1XL, 2, 3, 4) that overrides FAR for FAR-type zones. RFA zones ignore it.
 
-**FAR vs RFA** — Two density control mechanisms. FAR (Floor Area Ratio) applies to multifamily zones and is modified by height district. RFA (Residential Floor Area) applies to single-family zones and is fixed per zone class regardless of height district.
+**FAR vs RFA** — Two density control mechanisms. FAR (Floor Area Ratio) applies to multifamily zones and is modified by height district. RFA (Residential Floor Area) applies to single-family zones and is fixed per zone class.
 
-**Overlays** — Specific Plans, HPOZs, community plans, and general plan land use designations that layer additional rules on top of base zoning. Detected via spatial intersection and reduce confidence.
+**Overlays** — Specific Plans, HPOZs, community plans, and general plan land use designations. Detected via spatial intersection and reduce confidence.
 
-**Confidence** — A deterministic assessment (High/Medium/Low) of how reliable the zoning analysis is. Computed from zone support status, overlay presence, flag count, and Chapter 1A status. Not an LLM judgment.
+**Confidence** — A deterministic assessment (High/Medium/Low) computed from zone support status, overlay presence, flag count, and Chapter 1A status.
 
-**Chapter 1A** — Downtown LA's alternative zoning framework. Detected by bracket-format zone strings or Central City/Central City North community plans. Explicitly unsupported — confidence drops to Low.
+**Chapter 1A** — Downtown LA's alternative zoning framework. Detected by bracket-format zone strings or Central City community plans. Unsupported — confidence drops to Low.
 
-**Assessment** — The LLM-generated (or fallback) summary combining all deterministic facts into readable text with filtered citations and legal caveats.
+## Key Patterns
 
-## Key patterns and conventions
+**Deterministic-first.** Every factual claim comes from the hardcoded rules engine. The LLM receives all facts as grounding context and generates explanatory text. If the LLM fails, a template-based fallback produces the same facts.
 
-**Deterministic-first architecture.** Every factual claim (height, FAR, setbacks, density) comes from the hardcoded rules engine. The LLM receives all facts as grounding context and generates explanatory text. If the LLM fails, a template-based fallback produces the same facts without natural language polish.
+**Pure function rules engine.** `rules_engine.py` has zero I/O — all functions are pure, taking parsed data and returning structured results.
 
-**Two-phase loading.** The frontend splits parcel lookup into two sequential requests: fast deterministic facts (Phase 1, blocks UI transition) and slow LLM assessment (Phase 2, non-critical). This lets users see all zoning data in ~200ms while the LLM summary streams in behind the scenes. Phase 2 failure is silently tolerated.
+**Spatial join pattern.** All geographic lookups use `LEFT JOIN LATERAL ... ST_Intersects ... ORDER BY ST_Area(ST_Intersection) DESC LIMIT 1` to find the dominant overlay by intersection area.
 
-**Pure function rules engine.** `rules_engine.py` has zero I/O — all functions are pure, taking parsed data and returning structured results. This makes it trivially testable and the most thoroughly tested part of the codebase.
+**Graceful LLM degradation.** Missing API key, API errors, model refusal, hallucinated citations — all produce a deterministic fallback with `llm_available: false`.
 
-**Spatial join pattern.** All geographic lookups use `LEFT JOIN LATERAL ... ST_Intersects ... ORDER BY ST_Area(ST_Intersection) DESC LIMIT 1` to find the dominant overlay by intersection area. This handles parcels that span multiple zones/overlays.
+**Citation whitelist.** LLM citations are filtered to known-safe patterns (LAMC sections, planning.lacity.gov). Hallucinated URLs are stripped.
 
-**Graceful LLM degradation.** Missing API key, API errors, model refusal, hallucinated citations — all produce a deterministic fallback with `llm_available: false`. The system never fails because the LLM is unavailable.
+**Request deduplication.** Frontend uses a request ID ref + AbortController to prevent stale responses during rapid searches.
 
-**Citation whitelist.** LLM citations are filtered to known-safe patterns (LAMC sections, source URLs, planning.lacity.gov). Hallucinated URLs are stripped.
+## Data Layer
 
-**Request deduplication.** Frontend uses a request ID ref + AbortController pattern to prevent stale responses from overwriting current results during rapid searches.
+PostgreSQL 17 + PostGIS. All spatial data bulk-seeded from LA County/City ArcGIS REST endpoints.
 
-**No routing library.** Frontend uses simple state-based view switching (`"home" | "loading" | "error" | "assessment"`) rather than a router — appropriate for a single-concern tool.
+| Table | Purpose |
+|-------|---------|
+| `parcels` | Property records (ain, address, geom, property facts) |
+| `zoning` | LA City zone polygons (zone_class, zone_cmplt, geom) |
+| `specific_plans` | Specific plan boundaries (name, url, geom) |
+| `hpoz` | Historic preservation zones (name, geom) |
+| `community_plan_areas` | Community plan boundaries (name, geom) |
+| `general_plan_lu` | General plan land use (designation, geom) |
+| `city_boundaries` | LA City municipal boundary (name, geom) |
+| `buildings` | Building footprints — demo areas only (geom) |
+| `ingest_metadata` | Data freshness tracking (source, ingested_at) |
 
-**Domain terminology.** Code uses "regulation", "zone", "parcel", "permit" — never generic names. Enums or const maps for zone types and regulation codes.
+Spatial indexes on all geometry columns. Martin serves vector tiles directly from PostGIS — no pre-generated tile cache. See [Data Sources](DATA_SOURCES.md) for full endpoint details.
 
-**Recent searches.** Last 5 viewed parcels are persisted to localStorage with deduplication by AIN and a max cap. Shown on the home panel for quick re-access.
+## API
 
-## Data layer
-
-**PostgreSQL 17 + PostGIS.** All spatial data bulk-seeded from LA County/City ArcGIS REST endpoints.
-
-**Tables** (created by `ingestion/create_tables.py`):
-
-| Table | Purpose | Key columns |
-|-------|---------|-------------|
-| `parcels` | Property records | ain, apn, address, geom (MultiPolygon 4326), property facts |
-| `zoning` | LA City zone polygons | zone_class, zone_cmplt, geom |
-| `specific_plans` | Specific plan boundaries | name, url, geom |
-| `hpoz` | Historic preservation zones | name, geom |
-| `community_plan_areas` | Community plan boundaries | name, geom |
-| `general_plan_lu` | General plan land use | designation, geom |
-| `city_boundaries` | LA City municipal boundary | name, geom |
-| `buildings` | Building footprints (demo areas only) | geom |
-| `ingest_metadata` | Data freshness tracking | source, ingested_at, source_url |
-
-**Spatial indexes** on all geometry columns. Demo building footprints limited to Silver Lake, Venice, and Eagle Rock neighborhoods.
-
-**No ORM migrations.** Tables are created by the ingestion script's DDL. Schema changes require re-running `create_tables.py` and `ingest.py`.
-
-**Martin** serves vector tiles directly from PostGIS tables (zoning, parcels, buildings) — no pre-generated tile cache.
-
-## API surface
-
-All endpoints are unauthenticated. No rate limiting.
+All endpoints are unauthenticated.
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/health` | GET | Returns `{"status": "ok"\|"degraded", "db": bool}` |
+| `/health` | GET | Status check (`ok` or `degraded`) |
 | `/api/home` | GET | Homepage metadata: supported zones, data sources, featured parcels |
-| `/api/parcels/search?q=` | GET | Search parcels by address (ILIKE) or APN/AIN (exact match). Returns up to 10 results. |
-| `/api/parcels/{ain}/facts` | GET | Fast parcel detail: facts, zoning, overlays, standards, ADU, confidence — no LLM call. Returns `ParcelDetail`. |
-| `/api/parcels/{ain}/assessment` | GET | LLM-only assessment for a parcel. Returns `Assessment`. Slower (2-5s). |
-| `/api/parcels/{ain}` | GET | Full parcel detail with LLM assessment in a single call (backward-compatible, slower). |
+| `/api/parcels/search?q=` | GET | Search by address (ILIKE) or APN/AIN (exact). Up to 10 results. |
+| `/api/parcels/{ain}/facts` | GET | Fast parcel detail: facts, zoning, overlays, standards, ADU, confidence. No LLM. |
+| `/api/parcels/{ain}/assessment` | GET | LLM assessment only. Slower (2-5s). |
+| `/api/parcels/{ain}` | GET | Full detail + LLM in a single call (backward-compatible). |
 
-**Response shape for `/api/parcels/{ain}/facts`** — `ParcelDetail` with 9 nested sections:
-- `parcel` — ParcelFacts (address, coordinates, lot sqft, year built, use, bedrooms)
-- `scope` — Jurisdiction flags (in_la_city, supported_zone, chapter_1a)
-- `zoning` — Zone string, class, height district, Q/T/D flags, suffixes
-- `overlays` — Specific plan, HPOZ, community plan, general plan LU (each with optional URL)
-- `standards` — Height, stories, FAR/RFA, setbacks, density, allowed uses
-- `adu` — Allowed, max sqft, setbacks, notes
-- `confidence` — Level + reasons list
-- `assessment` — Summary, citations, caveats, llm_available flag (deterministic fallback from facts endpoint)
-- `metadata` — data_as_of timestamp, source URLs
+## Environment
 
-## Environment and config
-
-**Backend** (Pydantic BaseSettings, all optional with defaults):
+**Backend** (Pydantic BaseSettings):
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `DATABASE_URL` | `postgresql+psycopg://postgres:postgres@db/regulation_engine` | SQLAlchemy async connection |
-| `OPENAI_API_KEY` | `""` (empty = fallback mode) | OpenAI API credentials |
+| `OPENAI_API_KEY` | `""` (fallback mode) | OpenAI credentials |
 | `OPENAI_MODEL` | `gpt-4.1-mini` | LLM model slug |
-| `MARTIN_URL` | `http://martin:3000` | Martin tile server (referenced in config, not queried by backend) |
+| `MARTIN_URL` | `http://martin:3000` | Martin tile server |
 
 **Frontend** (Vite build-time):
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `VITE_API_URL` | `http://localhost:8000` | Backend API base URL |
-| `VITE_MARTIN_URL` | `http://localhost:3001` | Martin tile server for map layers |
+| `VITE_MARTIN_URL` | `http://localhost:3001` | Martin tile server |
 | `VITE_BASEMAP_TILE_URL` | OpenStreetMap | Raster basemap tile source |
-| `VITE_BASEMAP_ATTRIBUTION` | *(OSM attribution)* | Map attribution text |
-
-**Local dev:** `docker-compose up` starts db (PostGIS on 54320), martin (on 3001), and backend (on 8000). Frontend runs separately via `pnpm dev`.
 
 ## Testing
 
 **Backend** — pytest with `asyncio_mode = "auto"`:
-- `test_rules_engine.py` — Zone string parsing, rule lookup, height district FAR, effective FAR, confidence, ADU. All pure functions, no mocking needed.
-- `test_llm_service.py` — Fallback assessment, prompt construction, API integration with mocks (whitelist filtering, refusal handling, error fallback).
-- `test_home_service.py` — Home metadata service with mocked session: sources, featured parcels, missing provenance handling.
-- `test_home_api.py` — Integration test via TestClient for `GET /api/home`.
-- `conftest.py` — Stub.
-- Run: `cd backend && pytest`
+- `test_rules_engine.py` — Zone string parsing, rule lookup, height district FAR, confidence, ADU. All pure functions.
+- `test_llm_service.py` — Fallback assessment, prompt construction, API integration with mocks.
+- `test_home_service.py` / `test_home_api.py` — Home metadata service and API integration.
 
 **Frontend** — Vitest + Testing Library:
-- `App.test.tsx` — 4 integration tests: home panel with live metadata, graceful fallback on metadata failure, featured parcel → assessment → home round-trip, recent searches from localStorage.
-- `recentSearches.test.ts` — 2 unit tests: deduplication by AIN and max-5 cap.
-- Run: `cd frontend && pnpm test`
+- `App.test.tsx` — Integration tests: home panel, metadata fallback, assessment round-trip, recent searches.
+- `recentSearches.test.ts` — Unit tests: deduplication and max cap.
 
-**Ingestion** — No automated tests. Verification via `verify_data.py` (row counts, geometry checks).
-
-## Important decisions and tradeoffs
-
-**Bulk seed over live API queries (ADR-002).** All spatial data is pre-loaded into PostGIS rather than queried from LA County/City ArcGIS endpoints at request time. This gives sub-100ms lookups and eliminates external API dependency at runtime, but means data can be stale between re-ingestions. The tradeoff is acceptable because zoning data changes infrequently.
-
-**Deterministic rules + LLM explanation (ADR-003).** The LLM never decides what the zoning facts are — it only summarizes them. This means the system produces correct answers even when the LLM is unavailable, hallucinates, or is replaced with a different model. The cost is that the LLM summary can't add information the rules engine doesn't already have.
-
-**Two-phase API split.** Facts and LLM assessment are separate endpoints (`/facts` and `/assessment`) rather than a single blocking call. This lets the frontend show deterministic data instantly while the LLM generates in the background. The older single-endpoint (`/{ain}`) is preserved for backward compatibility but is not used by the frontend.
-
-**Curated rule pack over full LAMC encoding (ADR-005).** Only ~15 residential zone classes are hardcoded, covering ~95% of LA City residential parcels. Commercial, industrial, and Chapter 1A zones are explicitly unsupported (confidence drops to Low). This was chosen because encoding the full LAMC is a multi-month effort and 95% coverage is sufficient for MVP.
-
-**Railway for everything (ADR-004).** Backend, frontend, Martin, and PostGIS all deploy on Railway rather than splitting across AWS + Vercel. This simplifies operations for a PoC. AWS migration path is documented for future production deployment.
-
-**No authentication.** The API is fully open — appropriate for a demo/PoC but will need auth before production.
-
-**FAR vs RFA split.** Single-family zones (R1, RE*, RS, RA) use RFA which ignores height district. Multifamily zones (RD*, R3, R4, R5) use FAR which is overridden by height district. This reflects how the LAMC actually works but is a common source of confusion — the `far_type` field in the response makes the distinction explicit.
+**Ingestion** — No automated tests. Verification via `verify_data.py`.
 
 ## Gotchas
 
-**Zone string parsing is regex-heavy.** The `parse_zone_string` function handles a surprising number of edge cases (parenthesized flags, bracket-format Chapter 1A zones, dash-separated suffixes, D limitation detection). If you modify the regex, run the full test suite — there are 20+ parsing tests for a reason.
-
-**Chapter 1A detection has two paths.** A zone is Chapter 1A if (a) the zone string uses bracket format like `[MB3-SH1-1]` OR (b) the community plan is "Central City" or "Central City North". Both must be checked because the data isn't always consistent.
-
-**R1 variation zones (R1V1, R1V2, R1R3, R1H) fall back to base R1 rules.** The rule lookup strips suffixes after "R1" if the full variation isn't in the rule set. This is intentional — the variations don't change development standards enough to warrant separate entries.
-
-**CORS is wide open.** `allow_origins=["*"]` — fine for PoC, must be locked down for production.
-
-**Building footprints are demo-only.** The `buildings` table only has data for Silver Lake, Venice, and Eagle Rock (demo bboxes in ingestion config). Other neighborhoods show parcel and zoning layers but no building outlines.
-
-**No database migrations.** Schema changes require re-running `create_tables.py` which drops and recreates tables. This means re-ingesting all data afterward. Fine for early development, will need proper migrations eventually.
-
-**LLM model env var.** The config default is `gpt-4.1-mini` but the confirmed production model is `gpt-5.4-mini-2026-03-17`, set via `OPENAI_MODEL` environment variable on Railway. Don't rely on the code default.
-
-**Martin tile URLs differ between local and deployed.** Locally Martin is on port 3001 (mapped from container's 3000). On Railway it gets a public URL. The frontend's `VITE_MARTIN_URL` must match the deployment context.
-
-**Two-phase loading race conditions.** The frontend uses a `requestIdRef` counter to discard stale Phase 1 and Phase 2 responses when the user rapidly selects different parcels. If you change the loading flow, preserve this pattern or you'll get UI glitches.
+- **Zone string parsing is regex-heavy.** 20+ parsing tests exist for a reason — run the full suite if you modify `parse_zone_string`.
+- **Chapter 1A detection has two paths:** bracket-format zone string OR community plan = "Central City" / "Central City North".
+- **R1 variation zones** (R1V1, R1V2, R1R3, R1H) fall back to base R1 rules.
+- **No database migrations.** Schema changes require re-running `create_tables.py` + `ingest.py`.
+- **Martin tile URLs differ** between local (port 3001) and deployed (Railway public URL).
+- **Two-phase loading race conditions.** The `requestIdRef` counter discards stale responses — preserve this pattern if changing the loading flow.
