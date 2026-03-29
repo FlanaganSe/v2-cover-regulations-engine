@@ -8,7 +8,7 @@ Zoning lookup tool for Los Angeles residential parcels. Search by address or APN
 
 ## How It Works
 
-<img src="architecture/diagram.png" alt="Architecture diagram" width="780" />
+<img src="docs/architecture/diagram.png" alt="Architecture diagram" width="780" />
 
 1. User searches by address or APN
 2. PostGIS spatial joins determine zoning, overlays, and jurisdiction
