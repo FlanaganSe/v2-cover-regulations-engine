@@ -2,8 +2,6 @@
 
 Zoning lookup tool for Los Angeles residential parcels. Search by address or APN to get a full assessment: zone class, height/FAR/setback standards, ADU eligibility, overlay warnings, confidence score, and a plain-language summary.
 
-Every number comes from a deterministic rules engine. The LLM explains facts — it doesn't decide them.
-
 **Live demo:** [frontend-production-349e.up.railway.app](https://frontend-production-349e.up.railway.app/)
 
 <img src="docs/images/site-preview.png" alt="Parcel search with zoning assessment and interactive map" width="780" />
@@ -14,7 +12,7 @@ Every number comes from a deterministic rules engine. The LLM explains facts —
 
 1. User searches by address or APN
 2. PostGIS spatial joins determine zoning, overlays, and jurisdiction
-3. Rules engine (pure functions) computes standards, FAR, ADU, confidence
+3. Rules engine computes standards, FAR, ADU, confidence
 4. LLM summarizes the deterministic results — optional, with graceful fallback
 5. Frontend renders the assessment alongside an interactive map
 
@@ -33,24 +31,24 @@ See [Data Sources](docs/DATA_SOURCES.md) for endpoint details and field mappings
 | Layer | Technology |
 |-------|-----------|
 | Backend | Python 3.12, FastAPI, async SQLAlchemy, GeoAlchemy2 |
-| Frontend | TypeScript 5.9, React 19, Vite, Tailwind CSS |
+| Frontend | TypeScript 5.9, React 19, Tailwind CSS |
 | Map | MapLibre GL JS, Martin tile server, OSM raster base |
 | Database | PostgreSQL 17 + PostGIS |
-| LLM | OpenAI (gpt-5.4-mini), structured output, citation whitelist |
-| Deployment | Railway (all 4 services) |
+| LLM | OpenAI, structured output, citation whitelist |
+| Deployment | Railway |
 
 ## Getting Started
 
 **Prerequisites:** Docker, Node.js 22+, pnpm, Python 3.12+, uv
 
 ```bash
-cp .env.example .env              # add OPENAI_API_KEY if you have one
+cp .env.example .env               # add OPENAI_API_KEY if you have one
 
-docker compose up                  # start PostGIS, Martin, backend
+docker compose up                  # start PostGIS, Martin, backend server
 
-cd ingestion && uv sync            # seed the database (first time)
+cd ingestion && uv sync            # seed the database
 uv run python create_tables.py
-uv run python ingest.py
+uv run python ingest.py            # Takes ~1 hour
 cd ..
 
 cd frontend && pnpm install        # start the frontend
