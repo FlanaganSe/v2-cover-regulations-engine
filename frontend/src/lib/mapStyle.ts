@@ -2,7 +2,11 @@
 
 import type { StyleSpecification } from "maplibre-gl";
 
-const MARTIN_URL = import.meta.env.VITE_MARTIN_URL ?? "http://localhost:3001";
+const RAW_MARTIN_URL =
+  import.meta.env.VITE_MARTIN_URL ?? "http://localhost:3001";
+const MARTIN_URL = RAW_MARTIN_URL.startsWith("/")
+  ? `${window.location.origin}${RAW_MARTIN_URL}`
+  : RAW_MARTIN_URL;
 const BASEMAP_TILE_URL =
   import.meta.env.VITE_BASEMAP_TILE_URL ??
   "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
@@ -64,15 +68,15 @@ export function buildMapStyle(): StyleSpecification {
       },
       zoning: {
         type: "vector",
-        url: `${MARTIN_URL}/zoning`,
+        tiles: [`${MARTIN_URL}/zoning/{z}/{x}/{y}`],
       },
       buildings: {
         type: "vector",
-        url: `${MARTIN_URL}/buildings`,
+        tiles: [`${MARTIN_URL}/buildings/{z}/{x}/{y}`],
       },
       parcels: {
         type: "vector",
-        url: `${MARTIN_URL}/parcels`,
+        tiles: [`${MARTIN_URL}/parcels/{z}/{x}/{y}`],
       },
     },
     layers: [
